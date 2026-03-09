@@ -76,6 +76,12 @@ const Preview = () => {
 
     try {
       if (detectThemeRequest(chatInput)) {
+        console.log("🎨 Design request detected, calling generate endpoint...");
+        console.log("Sending:", { 
+          websiteId: id, 
+          prompt: `${website.title}. User request: ${chatInput}` 
+        });
+
         const res = await axios.post(
           `${API_URL}/generate`,
           {
@@ -88,6 +94,8 @@ const Preview = () => {
           }
         );
 
+        console.log("✅ Generate API succeeded:", res.data);
+
         if (res.data.code) {
           setCode(res.data.code);
           setIframeKey((prev) => prev + 1);
@@ -98,6 +106,7 @@ const Preview = () => {
           };
 
           setChat((prev) => [...prev, aiMessage]);
+          console.log("✅ Chat message added successfully");
         }
       } else {
         const aiMessage = {
@@ -109,7 +118,10 @@ const Preview = () => {
         setChat((prev) => [...prev, aiMessage]);
       }
     } catch (error) {
-      console.error("Chat error:", error);
+      console.error("❌ Chat error:", error.message);
+      console.error("Error response:", error.response?.data);
+      console.error("Error status:", error.response?.status);
+      console.error("Full error:", error);
 
       const aiMessage = {
         role: "ai",

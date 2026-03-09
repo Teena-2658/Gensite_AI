@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Website from "../models/website.model.js";
 import User from "../models/user.model.js";
 import { generateResponse } from "../config/openRouter.js";
@@ -73,7 +74,6 @@ RETURN RAW JSON ONLY
 `;
 
 
-
 /*
 -----------------------------------------
 GENERATE WEBSITE
@@ -86,29 +86,21 @@ export const generateWebsite = async (req, res) => {
     const { prompt, websiteId } = req.body;
 
     if (!prompt) {
-      return res.status(400).json({
-        message: "Prompt is required"
-      });
+      return res.status(400).json({ message: "Prompt is required" });
     }
 
     if (!req.user) {
-      return res.status(401).json({
-        message: "User not authenticated"
-      });
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
     const user = await User.findById(req.user._id);
 
     if (!user) {
-      return res.status(404).json({
-        message: "User not found"
-      });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.credits < 50) {
-      return res.status(403).json({
-        message: "Insufficient credits"
-      });
+    if (!user.credits || user.credits < 50) {
+      return res.status(403).json({ message: "Insufficient credits" });
     }
 
     const sanitizedPrompt = prompt.replace(/[<>]/g, "");
@@ -121,76 +113,104 @@ export const generateWebsite = async (req, res) => {
     let raw = "";
     let parsed = null;
 
+    console.log("🎨 Sending prompt to AI...");
+
     for (let i = 0; i < 3 && !parsed; i++) {
 
-      raw = await generateResponse(
-        finalPrompt + "\n\nIMPORTANT: RETURN ONLY RAW JSON."
-      );
+      try {
 
-      parsed = await extractJson(raw);
+        raw = await generateResponse(
+          finalPrompt + "\n\nIMPORTANT: RETURN ONLY RAW JSON."
+        );
+
+        console.log("🤖 AI Raw Response:", raw?.slice(0, 200));
+
+        parsed = await extractJson(raw);
+
+      } catch (aiError) {
+
+        console.error("⚠️ AI parsing attempt failed:", aiError.message);
+
+      }
+
     }
 
     if (!parsed) {
-      return res.status(500).json({
-        message: "AI response parsing failed"
-      });
+      console.error("❌ AI JSON parsing failed after retries");
+      return res.status(500).json({ message: "AI response parsing failed" });
     }
 
     if (!parsed.code || !parsed.code.includes("<html")) {
-      return res.status(500).json({
-        message: "Invalid website generated"
-      });
+      console.error("❌ AI returned invalid HTML");
+      return res.status(500).json({ message: "Invalid website generated" });
     }
 
     let website;
 
-    // If websiteId provided, update existing website
+    /*
+    -----------------------------------------
+    UPDATE EXISTING WEBSITE
+    -----------------------------------------
+    */
     if (websiteId) {
+
       website = await Website.findOne({
         _id: websiteId,
         user: user._id
       });
 
       if (!website) {
-        return res.status(404).json({
-          message: "Website not found"
-        });
+        return res.status(404).json({ message: "Website not found" });
       }
 
-      // Update existing website
       website.latestCode = parsed.code;
-      website.conversation.push({
-        role: "user",
-        content: prompt
-      });
-      website.conversation.push({
-        role: "ai",
-        content: parsed.message
-      });
+
+      website.conversation.push(
+        { role: "user", content: prompt },
+        { role: "ai", content: parsed.message }
+      );
+
       await website.save();
 
-    } else {
-      // Create new website
+      console.log("✅ Website updated successfully");
+
+    }
+
+    /*
+    -----------------------------------------
+    CREATE NEW WEBSITE
+    -----------------------------------------
+    */
+    else {
+
+      // ✅ FIX: generate unique slug
+      const slug =
+        prompt
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "") +
+        "-" +
+        Date.now();
+
       website = await Website.create({
 
         user: user._id,
 
         title: prompt.split(" ").slice(0, 6).join(" "),
 
+        slug: slug, // ✅ prevents duplicate slug error
+
         latestCode: parsed.code,
 
         conversation: [
-          {
-            role: "user",
-            content: prompt
-          },
-          {
-            role: "ai",
-            content: parsed.message
-          }
+          { role: "user", content: prompt },
+          { role: "ai", content: parsed.message }
         ]
 
       });
+
+      console.log("✅ New website created");
+
     }
 
     await User.findByIdAndUpdate(user._id, {
@@ -209,9 +229,12 @@ export const generateWebsite = async (req, res) => {
 
     });
 
-  } catch (error) {
+  }
 
-    console.error("Website generation error:", error);
+  catch (error) {
+
+    console.error("❌ Website generation error:", error);
+    console.error("MongoDB State:", mongoose.connection.readyState);
 
     return res.status(500).json({
       success: false,
@@ -222,8 +245,6 @@ export const generateWebsite = async (req, res) => {
   }
 
 };
-
-
 
 /*
 -----------------------------------------
@@ -420,12 +441,14 @@ export const saveConversation = async (req, res) => {
 
   } catch (error) {
 
-    console.error("Save conversation error:", error);
+    console.error("❌ Save conversation error:", error.message);
+    console.error("MongoDB Connection:", mongoose.connection.readyState); // 1=connected, 0=disconnected
 
     return res.status(500).json({
       success: false,
       message: "Failed to save conversation",
-      error: error.message
+      error: error.message,
+      mongoStatus: mongoose.connection.readyState
     });
 
   }
