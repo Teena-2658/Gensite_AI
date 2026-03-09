@@ -10,34 +10,32 @@ import {
 import Home from "./pages/Home.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 // import Generate from "./pages/Generate.jsx"; 
+import PaymentSuccess from "./pages/PaymentSuccess.jsx";
 import PreviewPage from "./pages/PreviewPage";
 import useGetCurrentUser from "./hooks/useGetCurrentUser.jsx";
 
 function App() {
   useGetCurrentUser();
 
-  const userData = useSelector((state) => state.user?.userData ?? null);
+  const storedUser = localStorage.getItem("user");
+  const userData = storedUser ? JSON.parse(storedUser) : null;
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Always show Home at root – no auto-redirect for logged-in users */}
+
         <Route path="/" element={<Home />} />
 
-        {/* Protected routes */}
         <Route
           path="/dashboard"
           element={userData ? <Dashboard /> : <Navigate to="/" replace />}
         />
-{/* 
-        <Route
-          path="/generate"
-          element={userData ? <Generate /> : <Navigate to="/" replace />}
-        /> */}
 
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
         <Route path="/preview/:id" element={<PreviewPage />} />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+
       </Routes>
     </BrowserRouter>
   );

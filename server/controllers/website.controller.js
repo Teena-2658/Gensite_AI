@@ -74,9 +74,10 @@ RETURN RAW JSON ONLY
 `;
 
 
+
 /*
 -----------------------------------------
-GENERATE WEBSITE
+GENERATE OR MODIFY WEBSITE
 -----------------------------------------
 */
 export const generateWebsite = async (req, res) => {
@@ -99,8 +100,12 @@ export const generateWebsite = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (!user.credits || user.credits < 50) {
-      return res.status(403).json({ message: "Insufficient credits" });
+    const cost = websiteId ? 25 : 50;
+
+    if (!user.credits || user.credits < cost) {
+      return res.status(403).json({
+        message: `Insufficient credits. ${cost} credits required`
+      });
     }
 
     const sanitizedPrompt = prompt.replace(/[<>]/g, "");
@@ -149,7 +154,7 @@ export const generateWebsite = async (req, res) => {
 
     /*
     -----------------------------------------
-    UPDATE EXISTING WEBSITE
+    MODIFY WEBSITE (25 CREDITS)
     -----------------------------------------
     */
     if (websiteId) {
@@ -178,12 +183,11 @@ export const generateWebsite = async (req, res) => {
 
     /*
     -----------------------------------------
-    CREATE NEW WEBSITE
+    CREATE NEW WEBSITE (50 CREDITS)
     -----------------------------------------
     */
     else {
 
-      // ✅ FIX: generate unique slug
       const slug =
         prompt
           .toLowerCase()
@@ -198,7 +202,7 @@ export const generateWebsite = async (req, res) => {
 
         title: prompt.split(" ").slice(0, 6).join(" "),
 
-        slug: slug, // ✅ prevents duplicate slug error
+        slug: slug,
 
         latestCode: parsed.code,
 
@@ -213,9 +217,13 @@ export const generateWebsite = async (req, res) => {
 
     }
 
-    await User.findByIdAndUpdate(user._id, {
-      $inc: { credits: -50 }
-    });
+    /*
+    -----------------------------------------
+    DEDUCT CREDITS
+    -----------------------------------------
+    */
+    user.credits -= cost;
+    await user.save();
 
     return res.status(200).json({
 
@@ -225,7 +233,7 @@ export const generateWebsite = async (req, res) => {
 
       message: parsed.message,
 
-      remainingCredits: user.credits - 50
+      remainingCredits: user.credits
 
     });
 
@@ -246,9 +254,11 @@ export const generateWebsite = async (req, res) => {
 
 };
 
+
+
 /*
 -----------------------------------------
-GET USER WEBSITES (DASHBOARD)
+GET USER WEBSITES
 -----------------------------------------
 */
 export const getUserWebsites = async (req, res) => {
@@ -289,7 +299,7 @@ export const getUserWebsites = async (req, res) => {
 
 /*
 -----------------------------------------
-GET SINGLE WEBSITE (PREVIEW / EDIT)
+GET SINGLE WEBSITE
 -----------------------------------------
 */
 export const getWebsiteById = async (req, res) => {
@@ -340,12 +350,6 @@ export const deployWebsite = async (req, res) => {
 
     const { id } = req.params;
 
-    if (!req.user) {
-      return res.status(401).json({
-        message: "User not authenticated"
-      });
-    }
-
     const website = await Website.findOne({
       _id: id,
       user: req.user._id
@@ -357,10 +361,8 @@ export const deployWebsite = async (req, res) => {
       });
     }
 
-    // Generate unique slug for deployment
     const slug = `${website.title.toLowerCase().replace(/\s+/g, "-")}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Update website with deployed status and slug
     const updatedWebsite = await Website.findByIdAndUpdate(
       id,
       {

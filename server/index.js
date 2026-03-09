@@ -7,7 +7,7 @@ import cors from "cors";
 import authRouter from './routes/auth.routes.js';
 import userRouter from './routes/user.routes.js';
 import websiteRouter from './routes/website.routes.js';
-
+import paymentRoutes from "./routes/payment.routes.js"; 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -20,7 +20,7 @@ app.use(cors({
 app.use("/api/auth", authRouter)
 app.use("/api/user", userRouter)
 app.use("/api/website", websiteRouter)
-
+app.use("/api/payment", paymentRoutes);
 app.listen(PORT, ()=>{
     console.log(`Server is running on port ${PORT}`);
     connectDB();
