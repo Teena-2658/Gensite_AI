@@ -6,7 +6,8 @@ import {
   getUserWebsites,
   getWebsiteById,
   saveConversation,
-  updateWebsiteCode
+  updateWebsiteCode,
+   deleteWebsite
 } from "../controllers/website.controller.js";
 
 const websiteRouter = express.Router();
@@ -19,7 +20,8 @@ websiteRouter.post("/generate", isAuth, generateWebsite);
 // GENERATE WEBSITE WITH PROGRESS STREAM
 websiteRouter.get("/generate-stream", isAuth, generateWebsite);
 
-
+// DELETE WEBSITE
+websiteRouter.delete("/:id", isAuth, deleteWebsite);
 // GET ALL WEBSITES OF LOGGED IN USER
 websiteRouter.get("/", isAuth, getUserWebsites);
 

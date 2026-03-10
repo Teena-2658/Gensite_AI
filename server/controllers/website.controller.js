@@ -571,3 +571,50 @@ export const updateWebsiteCode = async (req, res) => {
   }
 
 };
+
+/*
+-----------------------------------------
+DELETE WEBSITE
+-----------------------------------------
+*/
+export const deleteWebsite = async (req, res) => {
+
+  try {
+
+    const { id } = req.params;
+
+    if (!req.user) {
+      return res.status(401).json({
+        message: "User not authenticated"
+      });
+    }
+
+    const website = await Website.findOneAndDelete({
+      _id: id,
+      user: req.user._id
+    });
+
+    if (!website) {
+      return res.status(404).json({
+        message: "Website not found"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Website deleted successfully"
+    });
+
+  } catch (error) {
+
+    console.error("Delete website error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete website",
+      error: error.message
+    });
+
+  }
+
+};
