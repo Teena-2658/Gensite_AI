@@ -1,10 +1,11 @@
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 
-const model = "deepseek/deepseek-chat";
-
-export const generateResponse = async (prompt) => {
-
+export const generateResponse = async (messages) => {
   try {
+    // If input is a string, convert to standard message format
+    const formattedMessages = typeof messages === "string" 
+      ? [{ role: "user", content: messages }] 
+      : messages;
 
     const res = await fetch(openRouterUrl, {
       method: "POST",
@@ -13,42 +14,24 @@ export const generateResponse = async (prompt) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: model,
-        messages: [
-          {
-            role: "system",
-            content: "Return ONLY valid RAW JSON."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        temperature: 0.2
+        // Gemini 2.0 supports Vision and is very accurate for code
+        model: "google/gemini-2.0-flash-001", 
+        messages: formattedMessages,
+        temperature: 0.1,
+        response_format: { type: "json_object" }
       }),
     });
 
     if (!res.ok) {
-
       const err = await res.text();
-      console.error("❌ OpenRouter API error:", err);
-
       throw new Error("OpenRouter API error: " + err);
     }
 
     const data = await res.json();
-
-    if (!data?.choices?.length) {
-      throw new Error("Invalid AI response structure");
-    }
-
     return data.choices[0].message.content;
 
   } catch (error) {
-
     console.error("❌ generateResponse error:", error.message);
     throw error;
-
   }
-
 };

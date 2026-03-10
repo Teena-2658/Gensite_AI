@@ -291,103 +291,145 @@ const Dashboard = () => {
         </div>
 
         {/* PROJECTS SECTION */}
-        <div>
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-black text-slate-900">Your Ecosystem</h2>
-            <div className="px-4 py-1.5 bg-slate-200 rounded-full text-xs font-bold text-slate-600 uppercase tracking-tighter">
-              {websites.length} Websites Generated
-            </div>
-          </div>
+       {/* PROJECTS SECTION */}
+<div>
+  <div className="flex items-center justify-between mb-8">
+    <div className="space-y-1">
+      <h2 className="text-3xl font-black text-slate-900 tracking-tight">Your Ecosystem</h2>
+      <p className="text-slate-500 text-sm font-medium">Manage and deploy your AI-generated masterpieces</p>
+    </div>
+    <div className="px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-2xl text-xs font-bold text-slate-600 uppercase tracking-wider">
+      {websites.length} Websites
+    </div>
+  </div>
 
-          {websites.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-[2rem] border border-dashed border-slate-300">
-              <Globe className="mx-auto text-slate-300 mb-4" size={48} />
-              <h3 className="text-xl font-bold text-slate-400">No websites yet. Start building!</h3>
+  {websites.length === 0 ? (
+    <div className="text-center py-20 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200">
+      <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+        <Globe className="text-slate-300" size={40} />
+      </div>
+      <h3 className="text-xl font-bold text-slate-900">No websites yet</h3>
+      <p className="text-slate-500 mt-2">Your generated projects will appear here.</p>
+    </div>
+  ) : (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <AnimatePresence>
+        {websites.map((site) => (
+          <motion.div
+            key={site._id}
+            layout
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            whileHover={{ y: -8 }}
+            className="group bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300"
+          >
+            {/* WEBSITE PREVIEW AREA */}
+            <div className="relative h-52 bg-slate-100 overflow-hidden group-hover:cursor-pointer" onClick={() => navigate(`/preview/${site._id}`)}>
+              {/* Browser Mockup Header */}
+              <div className="absolute top-0 left-0 right-0 h-7 bg-slate-200/50 backdrop-blur-md flex items-center px-4 gap-1.5 z-10 border-b border-slate-300/30">
+                <div className="w-2 h-2 rounded-full bg-red-400" />
+                <div className="w-2 h-2 rounded-full bg-amber-400" />
+                <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                <div className="ml-2 h-3 w-24 bg-slate-300/50 rounded-full" />
+              </div>
+
+              {/* Dynamic Image/Pattern Placeholder */}
+              <div className={`absolute inset-0 pt-7 flex items-center justify-center transition-transform duration-700 group-hover:scale-110 bg-gradient-to-br ${site.deployedUrl ? 'from-emerald-50 to-teal-100' : 'from-blue-50 to-indigo-100'}`}>
+                {/* You can eventually replace this <img> tag with site.screenshotUrl */}
+                <div className="relative">
+                   <div className="absolute -inset-4 bg-white/40 blur-xl rounded-full" />
+                   <Globe size={80} className={`${site.deployedUrl ? 'text-emerald-300' : 'text-blue-300'} relative`} />
+                </div>
+                
+                {/* Floating "Hover to View" Overlay */}
+                <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                   <div className="bg-white text-slate-900 px-4 py-2 rounded-full font-bold text-xs flex items-center gap-2 shadow-xl translate-y-4 group-hover:translate-y-0 transition-all">
+                      <ExternalLink size={14} /> View Details
+                   </div>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="absolute bottom-4 left-4 flex gap-2 z-10">
+                {site.deployedUrl ? (
+                  <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter shadow-lg flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> Live
+                  </span>
+                ) : (
+                  <span className="bg-slate-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter shadow-lg">
+                    Draft
+                  </span>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <AnimatePresence>
-                {websites.map((site) => (
-                  <motion.div
-                    key={site._id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    whileHover={{ y: -5 }}
-                    className="group bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl transition-all"
+
+            {/* CONTENT AREA */}
+            <div className="p-7">
+              <div className="mb-5">
+                <h3 className="text-xl font-bold text-slate-800 truncate mb-1">
+                  {site.title || "Untitled Project"}
+                </h3>
+                <p className="text-slate-400 text-xs font-medium flex items-center gap-1">
+                   Created {new Date(site.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+
+              {site.deployedUrl && (
+                <div className="mb-5 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group/url">
+                  <div className="truncate pr-2">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Deployment URL</p>
+                    <p className="text-xs text-blue-600 font-bold truncate tracking-tight">{site.deployedUrl.replace('https://', '')}</p>
+                  </div>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); copyToClipboard(site.deployedUrl); }} 
+                    className="p-2 hover:bg-white hover:shadow-md rounded-xl transition-all text-slate-400 hover:text-blue-600"
                   >
-                    <div className="h-40 bg-slate-100 relative flex items-center justify-center overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                      <Globe size={64} className="text-slate-300 group-hover:scale-110 group-hover:text-blue-200 transition-all duration-500" />
-                      {site.deployedUrl && (
-                        <div className="absolute top-4 right-4 bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest animate-pulse shadow-lg">
-                          Live
-                        </div>
-                      )}
-                    </div>
+                    <Copy size={16} />
+                  </button>
+                </div>
+              )}
 
-                    <div className="p-6">
-                      <h3 className="text-xl font-bold mb-4 text-slate-800 truncate leading-tight">
-                        {site.title || "Untitled Project"}
-                      </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => navigate(`/preview/${site._id}`)}
+                  className="flex items-center justify-center gap-2 py-3.5 bg-slate-900 text-white rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-200"
+                >
+                  Edit Site
+                </button>
 
-                      {site.deployedUrl && (
-                        <div className="mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                          <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Live URL</p>
-                          <div className="flex items-center gap-2">
-                            <input 
-                              readOnly 
-                              value={site.deployedUrl}
-                              className="bg-transparent text-xs text-emerald-700 truncate w-full outline-none font-medium"
-                            />
-                            <button onClick={() => copyToClipboard(site.deployedUrl)} className="text-emerald-500 hover:text-emerald-700 p-1">
-                              <Copy size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          onClick={() => navigate(`/preview/${site._id}`)}
-                          className="flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-blue-600 transition-colors"
-                        >
-                          Preview
-                        </button>
-
-                        {!site.deployedUrl ? (
-                          <button
-                            onClick={() => deployWebsite(site._id)}
-                            disabled={deploying === site._id}
-                            className="flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 disabled:bg-slate-300 transition-all"
-                          >
-                            {deploying === site._id ? <Loader2 className="animate-spin" size={16} /> : <Rocket size={16} />}
-                            Deploy
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => window.open(site.deployedUrl, '_blank')}
-                            className="flex items-center justify-center gap-2 py-3 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-200 transition-colors"
-                          >
-                            <ExternalLink size={16} /> Open
-                          </button>
-                        )}
-                        
-                        <button
-                          onClick={() => deleteWebsite(site._id)}
-                          className="col-span-2 flex items-center justify-center gap-2 py-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl text-xs font-bold transition-all mt-2"
-                        >
-                          <Trash2 size={14} /> Remove Project
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                {!site.deployedUrl ? (
+                  <button
+                    onClick={() => deployWebsite(site._id)}
+                    disabled={deploying === site._id}
+                    className="flex items-center justify-center gap-2 py-3.5 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 disabled:bg-slate-200 transition-all active:scale-95 shadow-lg shadow-blue-100"
+                  >
+                    {deploying === site._id ? <Loader2 className="animate-spin" size={18} /> : <Rocket size={18} />}
+                    Deploy
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => window.open(site.deployedUrl, '_blank')}
+                    className="flex items-center justify-center gap-2 py-3.5 bg-emerald-50 text-emerald-700 rounded-2xl text-sm font-bold hover:bg-emerald-100 transition-all border border-emerald-100"
+                  >
+                    <ExternalLink size={18} /> Visit
+                  </button>
+                )}
+                
+                <button
+                  onClick={() => deleteWebsite(site._id)}
+                  className="col-span-2 flex items-center justify-center gap-2 py-2 text-slate-400 hover:text-red-500 rounded-xl text-[11px] font-bold transition-all mt-2 opacity-60 hover:opacity-100"
+                >
+                  <Trash2 size={12} /> Delete Permanently
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  )}
+</div>
       </main>
     </div>
   );
