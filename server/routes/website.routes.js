@@ -1,25 +1,43 @@
 import express from "express";
 import isAuth from "../middlewares/isAuth.js";
-import { generateWebsite, deployWebsite, getUserWebsites, getWebsiteById, saveConversation, updateWebsiteCode } from "../controllers/website.controller.js";
+import {
+  generateWebsite,
+  deployWebsite,
+  getUserWebsites,
+  getWebsiteById,
+  saveConversation,
+  updateWebsiteCode
+} from "../controllers/website.controller.js";
 
 const websiteRouter = express.Router();
 
-// GENERATE WEBSITE
+
+// GENERATE WEBSITE (normal API)
 websiteRouter.post("/generate", isAuth, generateWebsite);
 
-// GET ALL WEBSITES OF LOGGED IN USER (Dashboard ke liye)
+
+// GENERATE WEBSITE WITH PROGRESS STREAM
+websiteRouter.get("/generate-stream", isAuth, generateWebsite);
+
+
+// GET ALL WEBSITES OF LOGGED IN USER
 websiteRouter.get("/", isAuth, getUserWebsites);
 
-// SAVE CONVERSATION MESSAGE (must be before /:id routes)
+
+// SAVE CONVERSATION MESSAGE
 websiteRouter.post("/:id/conversation", isAuth, saveConversation);
 
-// UPDATE WEBSITE CODE (must be before /:id GET)
-websiteRouter.put("/:id/code", isAuth, updateWebsiteCode);
 
 // DEPLOY WEBSITE
-websiteRouter.put("/:id/deploy", isAuth, deployWebsite);
+websiteRouter.put("/deploy/:id", isAuth, deployWebsite);
 
-// GET SINGLE WEBSITE (must be last)
+
+// UPDATE WEBSITE CODE
+websiteRouter.put("/:id/code", isAuth, updateWebsiteCode);
+
+
+// GET SINGLE WEBSITE
 websiteRouter.get("/:id", isAuth, getWebsiteById);
+
 
 export default websiteRouter;

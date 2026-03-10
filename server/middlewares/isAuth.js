@@ -5,9 +5,12 @@ const authMiddleware = async (req, res, next) => {
 
   try {
 
+    console.log("🔐 Auth check for:", req.method, req.path);
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
+      console.log("❌ No auth header");
       return res.status(401).json({ message: "No token provided" });
     }
 
@@ -18,8 +21,11 @@ const authMiddleware = async (req, res, next) => {
     const user = await User.findById(decoded.id);
 
     if (!user) {
+      console.log("❌ User not found");
       return res.status(401).json({ message: "User not found" });
     }
+
+    console.log("✅ Auth passed for user:", user._id);
 
     req.user = user;
 
@@ -27,7 +33,7 @@ const authMiddleware = async (req, res, next) => {
 
   } catch (error) {
 
-    console.error("Auth error:", error);
+    console.error("❌ Auth error:", error.message);
 
     res.status(401).json({ message: "Invalid token" });
 

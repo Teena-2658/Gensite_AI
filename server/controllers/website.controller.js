@@ -3,7 +3,7 @@ import Website from "../models/website.model.js";
 import User from "../models/user.model.js";
 import { generateResponse } from "../config/openRouter.js";
 import extractJson from "../utils/extractJson.js";
-
+import fetch from "node-fetch";
 const masterPrompt = `
 YOU ARE A PRINCIPAL FRONTEND ARCHITECT
 AND A SENIOR UI/UX ENGINEER
@@ -82,30 +82,48 @@ GENERATE OR MODIFY WEBSITE
 */
 export const generateWebsite = async (req, res) => {
 
+  const sendProgress = (percent, text) => {
+    res.write(`data: ${JSON.stringify({ percent, text })}\n\n`);
+  };
+
   try {
 
-    const { prompt, websiteId } = req.body;
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive"
+    });
+
+  const { prompt, websiteId } = req.method === "GET" ? req.query : req.body;  
+
+    sendProgress(5, "Checking prompt...");
 
     if (!prompt) {
-      return res.status(400).json({ message: "Prompt is required" });
+      sendProgress(0, "Prompt missing");
+      return res.end();
     }
 
+    sendProgress(10, "Checking authentication...");
+
     if (!req.user) {
-      return res.status(401).json({ message: "User not authenticated" });
+      sendProgress(0, "User not authenticated");
+      return res.end();
     }
 
     const user = await User.findById(req.user._id);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      sendProgress(0, "User not found");
+      return res.end();
     }
 
     const cost = websiteId ? 25 : 50;
 
+    sendProgress(15, "Checking credits...");
+
     if (!user.credits || user.credits < cost) {
-      return res.status(403).json({
-        message: `Insufficient credits. ${cost} credits required`
-      });
+      sendProgress(0, "Insufficient credits");
+      return res.end();
     }
 
     const sanitizedPrompt = prompt.replace(/[<>]/g, "");
@@ -118,7 +136,7 @@ export const generateWebsite = async (req, res) => {
     let raw = "";
     let parsed = null;
 
-    console.log("🎨 Sending prompt to AI...");
+    sendProgress(25, "Sending request to AI...");
 
     for (let i = 0; i < 3 && !parsed; i++) {
 
@@ -128,7 +146,7 @@ export const generateWebsite = async (req, res) => {
           finalPrompt + "\n\nIMPORTANT: RETURN ONLY RAW JSON."
         );
 
-        console.log("🤖 AI Raw Response:", raw?.slice(0, 200));
+        sendProgress(55, "AI generating website...");
 
         parsed = await extractJson(raw);
 
@@ -141,21 +159,27 @@ export const generateWebsite = async (req, res) => {
     }
 
     if (!parsed) {
-      console.error("❌ AI JSON parsing failed after retries");
-      return res.status(500).json({ message: "AI response parsing failed" });
+
+      sendProgress(0, "AI parsing failed");
+
+      return res.end();
+
     }
 
     if (!parsed.code || !parsed.code.includes("<html")) {
-      console.error("❌ AI returned invalid HTML");
-      return res.status(500).json({ message: "Invalid website generated" });
+
+      sendProgress(0, "Invalid HTML generated");
+
+      return res.end();
+
     }
 
     let website;
 
+    sendProgress(70, "Preparing website data...");
+
     /*
-    -----------------------------------------
-    MODIFY WEBSITE (25 CREDITS)
-    -----------------------------------------
+    MODIFY WEBSITE
     */
     if (websiteId) {
 
@@ -165,7 +189,8 @@ export const generateWebsite = async (req, res) => {
       });
 
       if (!website) {
-        return res.status(404).json({ message: "Website not found" });
+        sendProgress(0, "Website not found");
+        return res.end();
       }
 
       website.latestCode = parsed.code;
@@ -177,14 +202,12 @@ export const generateWebsite = async (req, res) => {
 
       await website.save();
 
-      console.log("✅ Website updated successfully");
+      console.log("✅ Website updated");
 
     }
 
     /*
-    -----------------------------------------
-    CREATE NEW WEBSITE (50 CREDITS)
-    -----------------------------------------
+    CREATE WEBSITE
     */
     else {
 
@@ -213,42 +236,44 @@ export const generateWebsite = async (req, res) => {
 
       });
 
-      console.log("✅ New website created");
+      console.log("✅ Website created");
 
     }
 
-    /*
-    -----------------------------------------
-    DEDUCT CREDITS
-    -----------------------------------------
-    */
+    sendProgress(85, "Saving website...");
+
     user.credits -= cost;
+
     await user.save();
 
-    return res.status(200).json({
+    sendProgress(100, "Website generated successfully");
 
-      websiteId: website._id,
+    res.write(
+      `data: ${JSON.stringify({
+        done: true,
+        websiteId: website._id,
+        code: parsed.code,
+        message: parsed.message,
+        remainingCredits: user.credits
+      })}\n\n`
+    );
 
-      code: parsed.code,
-
-      message: parsed.message,
-
-      remainingCredits: user.credits
-
-    });
+    res.end();
 
   }
 
   catch (error) {
 
     console.error("❌ Website generation error:", error);
-    console.error("MongoDB State:", mongoose.connection.readyState);
 
-    return res.status(500).json({
-      success: false,
-      message: "Website generation failed",
-      error: error.message
-    });
+    res.write(
+      `data: ${JSON.stringify({
+        error: true,
+        message: error.message
+      })}\n\n`
+    );
+
+    res.end();
 
   }
 
@@ -275,7 +300,7 @@ export const getUserWebsites = async (req, res) => {
       user: req.user._id
     })
       .sort({ createdAt: -1 })
-      .select("_id title deployed createdAt");
+      .select("_id title deployed deployedUrl createdAt")
 
     return res.status(200).json({
       success: true,
@@ -361,39 +386,68 @@ export const deployWebsite = async (req, res) => {
       });
     }
 
-    const slug = `${website.title.toLowerCase().replace(/\s+/g, "-")}-${Math.random().toString(36).substr(2, 9)}`;
+    const projectName =
+      website.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .substring(0, 30) +
+      "-" +
+      website._id.toString().slice(-6);
 
-    const updatedWebsite = await Website.findByIdAndUpdate(
-      id,
+    const vercelResponse = await fetch(
+      "https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1",
       {
-        deployed: true,
-        deployedUrl: `${process.env.DEPLOY_URL || "http://localhost:8000"}/deploy/${slug}`,
-        slug: slug
-      },
-      { new: true }
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: projectName,
+          files: [
+            {
+              file: "index.html",
+              data: website.latestCode
+            }
+          ]
+        })
+      }
     );
 
-    return res.status(200).json({
+    const data = await vercelResponse.json();
+
+    console.log("Vercel response:", data);
+
+    if (!vercelResponse.ok) {
+      return res.status(500).json({
+        message: data.error?.message || "Vercel deployment failed"
+      });
+    }
+
+    const deployedUrl = `https://${data.url}`;
+
+    website.deployed = true;
+    website.deployedUrl = deployedUrl;
+
+    await website.save();
+
+    res.json({
       success: true,
-      message: "Website deployed successfully",
-      deployedUrl: updatedWebsite.deployedUrl,
-      website: updatedWebsite
+      deployedUrl
     });
 
   } catch (error) {
 
-    console.error("Deploy website error:", error);
+    console.error("Deploy error:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to deploy website",
+    res.status(500).json({
+      message: "Deployment failed",
       error: error.message
     });
 
   }
 
 };
-
 
 
 /*

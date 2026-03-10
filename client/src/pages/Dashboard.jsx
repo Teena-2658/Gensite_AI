@@ -10,6 +10,7 @@ const Dashboard = () => {
   const [websites, setWebsites] = useState([]);
   const [loading, setLoading] = useState(false);
   const [deploying, setDeploying] = useState(null);
+  const [deploymentUrls, setDeploymentUrls] = useState({});
 
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
@@ -113,69 +114,96 @@ const Dashboard = () => {
   GENERATE WEBSITE
   -----------------------------------
   */
-  const generateWebsite = async () => {
+const generateWebsite = () => {
 
-    if (!prompt.trim()) {
-      alert("Enter website idea");
-      return;
+  if (!prompt.trim()) {
+    alert("Enter website idea");
+    return;
+  }
+
+  setLoading(true);
+  setProgress(0);
+  setStatusText("Starting...");
+
+  const url = `${API_URL}/generate-stream?prompt=${encodeURIComponent(prompt)}`;
+
+  fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`
     }
+  }).then(async (response) => {
 
-    try {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
 
-      setLoading(true);
+    let buffer = "";
 
-      setProgress(10);
-      setStatusText("Preparing prompt...");
+    while (true) {
 
-      await new Promise(r => setTimeout(r, 400));
+      const { done, value } = await reader.read();
 
-      setProgress(30);
-      setStatusText("Sending request to AI...");
+      if (done) break;
 
-      const res = await axios.post(
-        `${API_URL}/generate`,
-        { prompt },
-        {
-          headers: { Authorization: `Bearer ${token}` }
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split("\n\n");
+
+      parts.slice(0, -1).forEach(part => {
+
+        if (part.startsWith("data: ")) {
+
+          const data = JSON.parse(part.replace("data: ", ""));
+
+          if (data.percent !== undefined) {
+            setProgress(data.percent);
+          }
+
+          if (data.text) {  
+            setStatusText(data.text);
+          }
+
+        if (data.done) {
+
+  setCredits(data.remainingCredits);
+
+  // update localStorage
+  const user = JSON.parse(localStorage.getItem("user"));
+  user.credits = data.remainingCredits;
+  localStorage.setItem("user", JSON.stringify(user));
+
+  setPrompt("");
+  fetchWebsites();
+
+  setTimeout(() => {
+    setLoading(false);
+    setProgress(0);
+    setStatusText("");
+  }, 1500);
+
+}
+          if (data.error) {
+            alert(data.message);
+            setLoading(false);
+          }
+
         }
-      );
 
-      setProgress(70);
-      setStatusText("Saving website...");
+      });
 
-      await new Promise(r => setTimeout(r, 500));
-
-      setProgress(100);
-      setStatusText("Website generated successfully!");
-
-      if (res.data?.remainingCredits !== undefined) {
-        setCredits(res.data.remainingCredits);
-      }
-
-      setPrompt("");
-      fetchWebsites();
-
-      setTimeout(() => {
-        setProgress(0);
-        setStatusText("");
-      }, 1500);
+      buffer = parts[parts.length - 1];
 
     }
 
-    catch (err) {
+  }).catch(err => {
 
-      console.error(err);
-      alert(err.response?.data?.message || "Error generating site");
+    console.error(err);
+    alert("Generation failed");
+    setLoading(false);
 
-    }
+  });
 
-    finally {
-
-      setLoading(false);
-
-    }
-
-  };
+};
 
 
   /*
@@ -199,7 +227,7 @@ const Dashboard = () => {
 
       setDeploying(id);
 
-      await axios.put(
+      const response = await axios.put(
         `${API_URL}/deploy/${id}`,
         {},
         {
@@ -207,16 +235,23 @@ const Dashboard = () => {
         }
       );
 
-      alert("Website deployed successfully!");
+      const { deployedUrl } = response.data;
+
+      setDeploymentUrls(prev => ({
+        ...prev,
+        [id]: deployedUrl
+      }));
 
       fetchWebsites();
+
+      alert(`✅ Deployed! URL: ${deployedUrl}`);
 
     }
 
     catch (error) {
 
       console.error(error);
-      alert("Failed to deploy website");
+      alert("Failed to deploy website: " + error.response?.data?.message || error.message);
 
     }
 
@@ -226,6 +261,11 @@ const Dashboard = () => {
 
     }
 
+  };
+
+  const copyToClipboard = (url) => {
+    navigator.clipboard.writeText(url);
+    alert("Link copied to clipboard!");
   };
 
 
@@ -367,24 +407,25 @@ const Dashboard = () => {
 
           {loading && (
 
-            <div className="mt-4">
+  <div className="mt-6">
 
-              <div className="w-full bg-gray-200 rounded-full h-3">
+    <div className="flex justify-between text-sm mb-1">
+      <span>{statusText}</span>
+      <span className="font-bold">{progress}%</span>
+    </div>
 
-                <div
-                  className="bg-blue-600 h-3 rounded-full transition-all"
-                  style={{ width: `${progress}%` }}
-                />
+    <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
 
-              </div>
+      <div
+        className="bg-blue-600 h-4 rounded-full transition-all duration-500"
+        style={{ width: `${progress}%` }}
+      />
 
-              <p className="text-sm text-gray-600 mt-2">
-                {statusText}
-              </p>
+    </div>
 
-            </div>
+  </div>
 
-          )}
+)}
 
         </div>
 
@@ -409,22 +450,52 @@ const Dashboard = () => {
                   {site.title}
                 </h3>
 
+                {site.deployedUrl ? (
+                  <div className="mb-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg">
+                    <p className="text-xs text-green-700 font-bold mb-2">🚀 LIVE WEBSITE</p>
+                    <a 
+                      href={site.deployedUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="block text-sm text-blue-600 hover:text-blue-800 hover:underline break-all font-medium mb-2"
+                    >
+                      {site.deployedUrl}
+                    </a>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => copyToClipboard(site.deployedUrl)}
+                        className="flex-1 px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 font-semibold"
+                      >
+                        📋 Copy URL
+                      </button>
+                      <button
+                        onClick={() => window.open(site.deployedUrl, '_blank')}
+                        className="flex-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 font-semibold"
+                      >
+                        🔗 Open Site
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="flex gap-2">
 
                   <button
                     onClick={() => previewWebsite(site._id)}
-                    className="flex-1 px-3 py-2 bg-blue-600 text-white rounded"
+                    className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
                     Preview
                   </button>
 
-                  <button
-                    onClick={() => deployWebsite(site._id)}
-                    disabled={deploying === site._id}
-                    className="flex-1 px-3 py-2 bg-green-600 text-white rounded"
-                  >
-                    {deploying === site._id ? "Deploying..." : "Deploy"}
-                  </button>
+                  {!site.deployedUrl && (
+                    <button
+                      onClick={() => deployWebsite(site._id)}
+                      disabled={deploying === site._id}
+                      className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
+                    >
+                      {deploying === site._id ? "Deploying..." : "Deploy"}
+                    </button>
+                  )}
 
                 </div>
 

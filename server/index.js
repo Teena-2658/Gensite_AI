@@ -10,9 +10,15 @@ import websiteRouter from './routes/website.routes.js';
 import paymentRoutes from "./routes/payment.routes.js"; 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
 app.use(express.json());
 app.use(cookieParser());
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`📲 ${req.method} ${req.path}`);
+  next();
+});
+
 app.use(cors({
      origin: "http://localhost:5173",
         credentials: true,
