@@ -14,7 +14,7 @@
     "@tailwindcss/vite": "^4.2.1",
     "axios": "^1.13.6",
     "firebase": "^12.10.0",
-    "framer-motion": "^12.35.0",
+    "framer-motion": "^12.35.2",
     "lucide-react": "^0.576.0",
     "motion": "^12.34.4",
     "react": "^19.2.0",
