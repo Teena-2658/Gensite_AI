@@ -2,10 +2,11 @@ const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 
 export const generateResponse = async (messages) => {
   try {
-    // If input is a string, convert to standard message format
-    const formattedMessages = typeof messages === "string" 
-      ? [{ role: "user", content: messages }] 
-      : messages;
+
+    const formattedMessages =
+      typeof messages === "string"
+        ? [{ role: "user", content: messages }]
+        : messages;
 
     const res = await fetch(openRouterUrl, {
       method: "POST",
@@ -14,11 +15,9 @@ export const generateResponse = async (messages) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        // Gemini 2.0 supports Vision and is very accurate for code
-        model: "google/gemini-2.0-flash-001", 
+        model: "google/gemini-2.0-flash-001",
         messages: formattedMessages,
-        temperature: 0.1,
-        response_format: { type: "json_object" }
+        temperature: 0.1
       }),
     });
 
@@ -28,7 +27,8 @@ export const generateResponse = async (messages) => {
     }
 
     const data = await res.json();
-    return data.choices[0].message.content;
+
+    return data.choices?.[0]?.message?.content || "";
 
   } catch (error) {
     console.error("❌ generateResponse error:", error.message);
