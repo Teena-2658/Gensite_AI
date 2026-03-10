@@ -1,36 +1,21 @@
 // Import the functions you need from the SDKs you need
-// import { initializeApp } from "firebase/app";
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
-// const firebaseConfig = {
-//   apiKey: "AIzaSyAnlqRNu2jSsaEActosu-ZOrKxLPtJ_ytk",
-//   authDomain: "gensiteai-ae27a.firebaseapp.com",
-//   projectId: "gensiteai-ae27a",
-//   storageBucket: "gensiteai-ae27a.firebasestorage.app",
-//   messagingSenderId: "650837340470",
-//   appId: "1:650837340470:web:23bcd8370ad5123e374397"
-// };
-
-// // Initialize Firebase
-// const app = initializeApp(firebaseConfig);
-
-
-//new 
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
-
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAnlqRNu2jSsaEActosu-ZOrKxLPtJ_ytk",
-  authDomain: "gensiteai-ae27a.firebaseapp.com",
-  projectId: "gensiteai-ae27a",
-  storageBucket: "gensiteai-ae27a.firebasestorage.app",
-  messagingSenderId: "650837340470",
-  appId: "1:650837340470:web:23bcd8370ad5123e374397"
+  apiKey: "AIzaSyDsryljm0qFW53cb6Foek0APe3Op9xzf2g",
+  authDomain: "gensiteai-6d389.firebaseapp.com",
+  projectId: "gensiteai-6d389",
+  storageBucket: "gensiteai-6d389.firebasestorage.app",
+  messagingSenderId: "100782044397",
+  appId: "1:100782044397:web:251496d50b31658db0c8e4",
+  measurementId: "G-GCDHK5W67W"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
-export const auth = getAuth(app);
-export const provider = new GoogleAuthProvider();
+const analytics = getAnalytics(app);
