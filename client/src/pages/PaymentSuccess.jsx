@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import axios from "axios";
 import { useSearchParams, useNavigate } from "react-router-dom";
-
+import { serverUrl } from "../constants";
 const PaymentSuccess = () => {
 
   const [searchParams] = useSearchParams();
@@ -15,10 +15,10 @@ const PaymentSuccess = () => {
 
         const sessionId = searchParams.get("session_id");
 
-        const res = await axios.post(
-          "http://localhost:8000/api/payment/verify",
-          { sessionId }
-        );
+       const res = await axios.post(
+  `${serverUrl}/api/payment/verify`,
+  { sessionId }
+);
 
         alert(`Credits added: ${res.data.creditsAdded}`);
 

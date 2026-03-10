@@ -7,7 +7,7 @@ import {
   Terminal, Paperclip, X, Loader2, Zap, Code2, Eye, 
   ChevronLeft, ExternalLink, RefreshCw
 } from "lucide-react";
-
+import { serverUrl } from "../constants";
 const Preview = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -26,7 +26,7 @@ const Preview = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [mode, setMode] = useState("preview"); // 'preview' or 'code'
 
-  const API_URL = "http://localhost:8000/api/website";
+const API_URL = `${serverUrl}/api/website`;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -268,8 +268,7 @@ const Preview = () => {
                   <div className="w-2.5 h-2.5 rounded-full bg-zinc-200" />
                 </div>
                 <div className="flex-1 mx-12 bg-white border rounded-md h-5 flex items-center px-2">
-                  <span className="text-[10px] text-zinc-300 truncate">localhost:3000/preview</span>
-                </div>
+<span className="text-[10px] text-zinc-300 truncate">gensite-ai.vercel.app/preview</span>                </div>
               </div>
 
               {/* OVERLAY LOADER */}

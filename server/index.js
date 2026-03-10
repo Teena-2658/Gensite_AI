@@ -24,8 +24,11 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-     origin: "http://localhost:5173",
-        credentials: true,
+  origin: [
+    "http://localhost:5173",
+    "https://gensite-ai.vercel.app"
+  ],
+  credentials: true
 }));
 app.use("/api/auth", authRouter)
 app.use("/api/user", userRouter)

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { motion, AnimatePresence } from "framer-motion";
+import { serverUrl } from "../constants";
 import { 
   Zap, 
   LogOut, 
@@ -33,7 +34,7 @@ const Dashboard = () => {
   const userData = JSON.parse(localStorage.getItem("user"));
   const token = userData?.token;
 
-  const API_URL = "http://localhost:8000/api/website";
+const API_URL = `${serverUrl}/api/website`;
 
   useEffect(() => {
     if (!token) navigate("/");
@@ -54,11 +55,8 @@ const Dashboard = () => {
 
   const buyCredits = async (creditsAmount) => {
     try {
-      const res = await axios.post(
-        "http://localhost:8000/api/payment/checkout",
-        { credits: creditsAmount },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await axios.post(`${serverUrl}/api/payment/checkout`, { credits: creditsAmount }, { headers: { Authorization: `Bearer ${token}` } });
+    
       window.location.href = res.data.url;
     } catch (error) {
       alert("Payment failed");

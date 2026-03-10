@@ -4,7 +4,8 @@ import { auth, provider } from "../firebase";
 import axios from "axios";
 import { X } from "lucide-react";
 
-const serverUrl = "http://localhost:8000";
+// const serverUrl = "http://localhost:8000";
+const serverUrl = import.meta.env.VITE_API_URL;
 
 const LoginModal = ({ open, onClose }) => {
   const [showSuccess, setShowSuccess] = useState(false);
