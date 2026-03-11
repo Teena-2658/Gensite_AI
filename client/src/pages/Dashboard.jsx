@@ -87,7 +87,7 @@ const API_URL = `${serverUrl}/api/website`;
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
+        const parts = buffer.split(/\r?\n\r?\n/);
         parts.slice(0, -1).forEach(part => {
           if (part.startsWith("data: ")) {
             const data = JSON.parse(part.replace("data: ", ""));

@@ -25,7 +25,8 @@ export const generateResponse = async (messages) => {
         "X-Title": "GenSite AI"
       },
       body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
+        model: "meta-llama/llama-3.1-8b-instruct:free",
+
         messages: formattedMessages,
         temperature: 0.2,
         max_tokens: 2000
