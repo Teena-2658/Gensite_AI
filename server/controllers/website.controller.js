@@ -61,136 +61,224 @@ GENERATE & AUTO-UPDATE WEBSITE
 -----------------------------------------
 */
 export const generateWebsite = async (req, res) => {
+
+  console.log("🚀 generateWebsite API called");
+
   const sendProgress = (percent, text) => {
     res.write(`data: ${JSON.stringify({ percent, text })}\n\n`);
   };
 
   try {
+
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
     });
 
-    const { prompt, websiteId, imageBase64 } = req.method === "GET" ? req.query : req.body;
+    res.flushHeaders();
+
+    const { prompt, websiteId, imageBase64 } =
+      req.method === "GET" ? req.query : req.body;
+
+    console.log("Prompt:", prompt);
 
     sendProgress(5, "Checking prompt...");
+
     if (!prompt && !imageBase64) {
       sendProgress(0, "Input missing");
       return res.end();
     }
 
     sendProgress(10, "Checking authentication...");
+
     if (!req.user) {
       sendProgress(0, "User not authenticated");
       return res.end();
     }
 
     const user = await User.findById(req.user._id);
+
     const cost = websiteId ? 25 : 50;
 
     sendProgress(15, "Checking credits...");
+
     if (!user || user.credits < cost) {
       sendProgress(0, "Insufficient credits");
       return res.end();
     }
 
-    const sanitizedPrompt = prompt ? prompt.replace(/[<>]/g, "") : "Update based on image";
-    const finalPrompt = masterPrompt.replace("{USER_PROMPT}", sanitizedPrompt);
+    const sanitizedPrompt = prompt
+      ? prompt.replace(/[<>]/g, "")
+      : "Update based on image";
+
+    const finalPrompt = masterPrompt.replace(
+      "{USER_PROMPT}",
+      sanitizedPrompt
+    );
 
     const aiInput = [
       {
         role: "user",
         content: [
-          { type: "text", text: finalPrompt + "\n\nIMPORTANT: RETURN ONLY RAW JSON." },
-          ...(imageBase64 ? [{ type: "image_url", image_url: { url: imageBase64 } }] : []),
+          {
+            type: "text",
+            text:
+              finalPrompt +
+              "\n\nIMPORTANT: RETURN ONLY RAW JSON.",
+          },
+          ...(imageBase64
+            ? [
+                {
+                  type: "image_url",
+                  image_url: { url: imageBase64 },
+                },
+              ]
+            : []),
         ],
       },
     ];
 
     let raw = "";
     let parsed = null;
+
     sendProgress(25, "AI is processing...");
 
     for (let i = 0; i < 3 && !parsed; i++) {
+
       try {
+
         raw = await generateResponse(aiInput);
+
+        console.log("🧠 AI RAW RESPONSE:");
+        console.log(raw);
+
         sendProgress(55, "Generating code...");
-        parsed = await extractJson(raw);
+
+        parsed = extractJson(raw);
+
+        console.log("📦 PARSED JSON:", parsed);
+
       } catch (aiError) {
+
         console.error("⚠️ AI attempt failed:", aiError.message);
+
       }
+
     }
 
     if (!parsed || !parsed.code) {
+
+      console.log("❌ AI parsing failed. RAW:");
+      console.log(raw);
+
       sendProgress(0, "AI parsing failed");
+
+      res.write(
+        `data: ${JSON.stringify({
+          error: true,
+          raw,
+        })}\n\n`
+      );
+
       return res.end();
     }
 
     let website;
+
     sendProgress(70, "Finalizing website...");
 
     if (websiteId) {
-      website = await Website.findOne({ _id: websiteId, user: user._id });
+
+      website = await Website.findOne({
+        _id: websiteId,
+        user: user._id,
+      });
+
       if (!website) {
-        sendProgress(0, "Not found");
+        sendProgress(0, "Website not found");
         return res.end();
       }
 
       website.latestCode = parsed.code;
+
       website.conversation.push(
-        { role: "user", content: prompt || "Update request" },
+        { role: "user", content: prompt },
         { role: "ai", content: parsed.message }
       );
 
-      // --- AUTO-UPDATE LOGIC ---
       if (website.deployed) {
+
         sendProgress(85, "Updating live deployment...");
-        const deployData = await triggerVercelDeploy(website, parsed.code);
+
+        const deployData = await triggerVercelDeploy(
+          website,
+          parsed.code
+        );
+
         if (deployData && deployData.url) {
           website.deployedUrl = `https://${deployData.url}`;
         }
       }
+
       await website.save();
+
     } else {
-      const slug = `${prompt?.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20) || "site"}-${Date.now()}`;
+
+      const slug =
+        `${prompt
+          ?.toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .slice(0, 20) || "site"}-${Date.now()}`;
+
       website = await Website.create({
         user: user._id,
-        title: prompt?.split(" ").slice(0, 6).join(" ") || "New Project",
+        title:
+          prompt?.split(" ").slice(0, 6).join(" ") ||
+          "New Project",
         slug,
         latestCode: parsed.code,
         conversation: [
-          { role: "user", content: prompt || "Initial request" },
+          { role: "user", content: prompt },
           { role: "ai", content: parsed.message },
         ],
       });
     }
 
-    // Deduct credits and save
     user.credits -= cost;
     await user.save();
 
-    // Success response with updated credits
     sendProgress(100, "Success");
+
     res.write(
       `data: ${JSON.stringify({
         done: true,
         websiteId: website._id,
         code: parsed.code,
         message: parsed.message,
-        remainingCredits: user.credits, // Updated credit count
+        remainingCredits: user.credits,
         deployedUrl: website.deployedUrl,
-        isDeployed: website.deployed
+        isDeployed: website.deployed,
       })}\n\n`
     );
+
     res.end();
+
   } catch (error) {
+
     console.error("Main Error:", error);
-    res.write(`data: ${JSON.stringify({ error: true, message: error.message })}\n\n`);
+
+    res.write(
+      `data: ${JSON.stringify({
+        error: true,
+        message: error.message,
+      })}\n\n`
+    );
+
     res.end();
   }
 };
-
 /*
 -----------------------------------------
 DEPLOY WEBSITE (MANUAL)

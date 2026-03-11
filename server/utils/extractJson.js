@@ -1,24 +1,22 @@
 const extractJson = (text) => {
-  if (!text) return null;
-
-  const cleaned = text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
-
-  const firstBrace = cleaned.indexOf("{");
-  const lastBrace = cleaned.lastIndexOf("}");
-
-  if (firstBrace === -1 || lastBrace === -1) return null;
-
-  const jsonString = cleaned.slice(firstBrace, lastBrace + 1);
 
   try {
-    return JSON.parse(jsonString);
+
+    if (!text) return null;
+
+    const match = text.match(/\{[\s\S]*\}/);
+
+    if (!match) return null;
+
+    return JSON.parse(match[0]);
+
   } catch (error) {
-    console.error("JSON Parse Error:", error);
+
+    console.error("JSON parse error:", error);
     return null;
+
   }
+
 };
 
 export default extractJson;
