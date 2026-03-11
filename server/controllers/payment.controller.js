@@ -4,8 +4,9 @@ dotenv.config();
 import Stripe from "stripe";
 import User from "../models/user.model.js";
 
-console.log(process.env.STRIPE_SECRET_KEY);
-console.log("API_KEY:", process.env.API_KEY);
+console.log("STRIPE KEY:", process.env.STRIPE_SECRET_KEY ? "Loaded ✅" : "Missing ❌");
+console.log("OPENROUTER KEY:", process.env.OPENROUTER_API_KEY ? "Loaded ✅" : "Missing ❌");
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 /*
 -----------------------------------
