@@ -34,12 +34,13 @@ const Dashboard = () => {
   const userData = JSON.parse(localStorage.getItem("user"));
   const token = userData?.token;
 
-const API_URL = `${serverUrl}/api/website`;
+  const API_URL = `${serverUrl}/api/website`;
 
   useEffect(() => {
     if (!token) navigate("/");
     if (userData?.credits) setCredits(userData.credits);
-  }, [token, navigate]);
+    if (token) fetchWebsites();
+  }, [token]);
 
   const fetchWebsites = async () => {
     try {
@@ -56,10 +57,28 @@ const API_URL = `${serverUrl}/api/website`;
   const buyCredits = async (creditsAmount) => {
     try {
       const res = await axios.post(`${serverUrl}/api/payment/checkout`, { credits: creditsAmount }, { headers: { Authorization: `Bearer ${token}` } });
-    
       window.location.href = res.data.url;
     } catch (error) {
       alert("Payment failed");
+    }
+  };
+
+  // --- यह फंक्शन नई वेबसाइट बनने के बाद उसे ऑटोमैटिक डिप्लॉय करेगा ---
+  const autoDeploy = async (newSiteId) => {
+    try {
+      setStatusText("Finalizing & Deploying to Cloud...");
+      setDeploying(newSiteId);
+      const response = await axios.put(`${API_URL}/deploy/${newSiteId}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        console.log("Auto-deploy successful!");
+        fetchWebsites(); // लिस्ट को रिफ्रेश करें ताकि URL दिखे
+      }
+    } catch (error) {
+      console.error("Auto-deploy failed", error);
+    } finally {
+      setDeploying(null);
     }
   };
 
@@ -93,13 +112,22 @@ const API_URL = `${serverUrl}/api/website`;
             const data = JSON.parse(part.replace("data: ", ""));
             if (data.percent !== undefined) setProgress(data.percent);
             if (data.text) setStatusText(data.text);
+            
             if (data.done) {
               setCredits(data.remainingCredits);
               const user = JSON.parse(localStorage.getItem("user"));
               user.credits = data.remainingCredits;
               localStorage.setItem("user", JSON.stringify(user));
               setPrompt("");
+              
+              // 1. वेबसाइट लिस्ट रिफ्रेश करें
               fetchWebsites();
+              
+              // 2. ऑटो डिप्लॉय ट्रिगर करें (अगर backend वेबसाइट ID भेज रहा है)
+              if (data.websiteId) {
+                autoDeploy(data.websiteId);
+              }
+
               setTimeout(() => {
                 setLoading(false);
                 setProgress(0);
@@ -138,10 +166,12 @@ const API_URL = `${serverUrl}/api/website`;
       const response = await axios.put(`${API_URL}/deploy/${id}`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setDeploymentUrls(prev => ({ ...prev, [id]: response.data.deployedUrl }));
-      fetchWebsites();
+      if (response.data.success) {
+         setDeploymentUrls(prev => ({ ...prev, [id]: response.data.deployedUrl }));
+         fetchWebsites();
+      }
     } catch (error) {
-      alert("Failed to deploy");
+      alert("Failed to deploy. Please check your Vercel Token.");
     } finally {
       setDeploying(null);
     }
@@ -151,10 +181,6 @@ const API_URL = `${serverUrl}/api/website`;
     navigator.clipboard.writeText(url);
     alert("Copied to clipboard!");
   };
-
-  useEffect(() => {
-    if (token) fetchWebsites();
-  }, [token]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans">
@@ -194,10 +220,9 @@ const API_URL = `${serverUrl}/api/website`;
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-10">
-        {/* TOP SECTION: BENTO LAYOUT */}
+        {/* TOP SECTION: GENERATOR & CREDITS */}
         <div className="grid lg:grid-cols-3 gap-8 mb-12">
           
-          {/* GENERATOR CARD */}
           <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 relative overflow-hidden">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
@@ -225,7 +250,7 @@ const API_URL = `${serverUrl}/api/website`;
               {loading ? (
                 <>
                   <Loader2 className="animate-spin" size={20} />
-                  Creating Magic...
+                  {statusText || "Creating Magic..."}
                 </>
               ) : (
                 <>
@@ -261,7 +286,6 @@ const API_URL = `${serverUrl}/api/website`;
             )}
           </div>
 
-          {/* CREDITS CARD */}
           <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-8 rounded-[2rem] shadow-xl text-white flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-2 opacity-80 uppercase tracking-widest text-xs font-bold">
@@ -289,145 +313,112 @@ const API_URL = `${serverUrl}/api/website`;
         </div>
 
         {/* PROJECTS SECTION */}
-       {/* PROJECTS SECTION */}
-<div>
-  <div className="flex items-center justify-between mb-8">
-    <div className="space-y-1">
-      <h2 className="text-3xl font-black text-slate-900 tracking-tight">Your Ecosystem</h2>
-      <p className="text-slate-500 text-sm font-medium">Manage and deploy your AI-generated masterpieces</p>
-    </div>
-    <div className="px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-2xl text-xs font-bold text-slate-600 uppercase tracking-wider">
-      {websites.length} Websites
-    </div>
-  </div>
-
-  {websites.length === 0 ? (
-    <div className="text-center py-20 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200">
-      <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-        <Globe className="text-slate-300" size={40} />
-      </div>
-      <h3 className="text-xl font-bold text-slate-900">No websites yet</h3>
-      <p className="text-slate-500 mt-2">Your generated projects will appear here.</p>
-    </div>
-  ) : (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      <AnimatePresence>
-        {websites.map((site) => (
-          <motion.div
-            key={site._id}
-            layout
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            whileHover={{ y: -8 }}
-            className="group bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300"
-          >
-            {/* WEBSITE PREVIEW AREA */}
-            <div className="relative h-52 bg-slate-100 overflow-hidden group-hover:cursor-pointer" onClick={() => navigate(`/preview/${site._id}`)}>
-              {/* Browser Mockup Header */}
-              <div className="absolute top-0 left-0 right-0 h-7 bg-slate-200/50 backdrop-blur-md flex items-center px-4 gap-1.5 z-10 border-b border-slate-300/30">
-                <div className="w-2 h-2 rounded-full bg-red-400" />
-                <div className="w-2 h-2 rounded-full bg-amber-400" />
-                <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                <div className="ml-2 h-3 w-24 bg-slate-300/50 rounded-full" />
-              </div>
-
-              {/* Dynamic Image/Pattern Placeholder */}
-              <div className={`absolute inset-0 pt-7 flex items-center justify-center transition-transform duration-700 group-hover:scale-110 bg-gradient-to-br ${site.deployedUrl ? 'from-emerald-50 to-teal-100' : 'from-blue-50 to-indigo-100'}`}>
-                {/* You can eventually replace this <img> tag with site.screenshotUrl */}
-                <div className="relative">
-                   <div className="absolute -inset-4 bg-white/40 blur-xl rounded-full" />
-                   <Globe size={80} className={`${site.deployedUrl ? 'text-emerald-300' : 'text-blue-300'} relative`} />
-                </div>
-                
-                {/* Floating "Hover to View" Overlay */}
-                <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                   <div className="bg-white text-slate-900 px-4 py-2 rounded-full font-bold text-xs flex items-center gap-2 shadow-xl translate-y-4 group-hover:translate-y-0 transition-all">
-                      <ExternalLink size={14} /> View Details
-                   </div>
-                </div>
-              </div>
-
-              {/* Status Badge */}
-              <div className="absolute bottom-4 left-4 flex gap-2 z-10">
-                {site.deployedUrl ? (
-                  <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter shadow-lg flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> Live
-                  </span>
-                ) : (
-                  <span className="bg-slate-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter shadow-lg">
-                    Draft
-                  </span>
-                )}
-              </div>
+        <div>
+          <div className="flex items-center justify-between mb-8">
+            <div className="space-y-1">
+              <h2 className="text-3xl font-black text-slate-900 tracking-tight">Your Ecosystem</h2>
+              <p className="text-slate-500 text-sm font-medium">Manage and deploy your AI-generated masterpieces</p>
             </div>
-
-            {/* CONTENT AREA */}
-            <div className="p-7">
-              <div className="mb-5">
-                <h3 className="text-xl font-bold text-slate-800 truncate mb-1">
-                  {site.title || "Untitled Project"}
-                </h3>
-                <p className="text-slate-400 text-xs font-medium flex items-center gap-1">
-                   Created {new Date(site.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-
-              {site.deployedUrl && (
-                <div className="mb-5 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group/url">
-                  <div className="truncate pr-2">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Deployment URL</p>
-                    <p className="text-xs text-blue-600 font-bold truncate tracking-tight">{site.deployedUrl.replace('https://', '')}</p>
-                  </div>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); copyToClipboard(site.deployedUrl); }} 
-                    className="p-2 hover:bg-white hover:shadow-md rounded-xl transition-all text-slate-400 hover:text-blue-600"
-                  >
-                    <Copy size={16} />
-                  </button>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => navigate(`/preview/${site._id}`)}
-                  className="flex items-center justify-center gap-2 py-3.5 bg-slate-900 text-white rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-200"
-                >
-                  Edit Site
-                </button>
-
-                {!site.deployedUrl ? (
-                  <button
-                    onClick={() => deployWebsite(site._id)}
-                    disabled={deploying === site._id}
-                    className="flex items-center justify-center gap-2 py-3.5 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 disabled:bg-slate-200 transition-all active:scale-95 shadow-lg shadow-blue-100"
-                  >
-                    {deploying === site._id ? <Loader2 className="animate-spin" size={18} /> : <Rocket size={18} />}
-                    Deploy
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => window.open(site.deployedUrl, '_blank')}
-                    className="flex items-center justify-center gap-2 py-3.5 bg-emerald-50 text-emerald-700 rounded-2xl text-sm font-bold hover:bg-emerald-100 transition-all border border-emerald-100"
-                  >
-                    <ExternalLink size={18} /> Visit
-                  </button>
-                )}
-                
-                <button
-                  onClick={() => deleteWebsite(site._id)}
-                  className="col-span-2 flex items-center justify-center gap-2 py-2 text-slate-400 hover:text-red-500 rounded-xl text-[11px] font-bold transition-all mt-2 opacity-60 hover:opacity-100"
-                >
-                  <Trash2 size={12} /> Delete Permanently
-                </button>
-              </div>
+            <div className="px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-2xl text-xs font-bold text-slate-600 uppercase tracking-wider">
+              {websites.length} Websites
             </div>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
-  )}
-</div>
+          </div>
+
+          {websites.length === 0 ? (
+            <div className="text-center py-20 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200">
+              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Globe className="text-slate-300" size={40} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">No websites yet</h3>
+              <p className="text-slate-500 mt-2">Your generated projects will appear here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <AnimatePresence>
+                {websites.map((site) => (
+                  <motion.div
+                    key={site._id}
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    whileHover={{ y: -8 }}
+                    className="group bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300"
+                  >
+                    <div className="relative h-52 bg-slate-100 overflow-hidden group-hover:cursor-pointer" onClick={() => navigate(`/preview/${site._id}`)}>
+                      <div className="absolute top-0 left-0 right-0 h-7 bg-slate-200/50 backdrop-blur-md flex items-center px-4 gap-1.5 z-10 border-b border-slate-300/30">
+                        <div className="w-2 h-2 rounded-full bg-red-400" />
+                        <div className="w-2 h-2 rounded-full bg-amber-400" />
+                        <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                      </div>
+
+                      <div className={`absolute inset-0 pt-7 flex items-center justify-center transition-transform duration-700 group-hover:scale-110 bg-gradient-to-br ${site.deployedUrl ? 'from-emerald-50 to-teal-100' : 'from-blue-50 to-indigo-100'}`}>
+                        <Globe size={80} className={`${site.deployedUrl ? 'text-emerald-300' : 'text-blue-300'}`} />
+                        <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                           <div className="bg-white text-slate-900 px-4 py-2 rounded-full font-bold text-xs flex items-center gap-2 shadow-xl">
+                              <ExternalLink size={14} /> View Details
+                           </div>
+                        </div>
+                      </div>
+
+                      <div className="absolute bottom-4 left-4 flex gap-2 z-10">
+                        {site.deployedUrl ? (
+                          <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> Live
+                          </span>
+                        ) : (
+                          <span className="bg-slate-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">Draft</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-7">
+                      <div className="mb-5">
+                        <h3 className="text-xl font-bold text-slate-800 truncate mb-1">{site.title || "Untitled Project"}</h3>
+                        <p className="text-slate-400 text-xs">Created {new Date(site.createdAt).toLocaleDateString()}</p>
+                      </div>
+
+                      {site.deployedUrl && (
+                        <div className="mb-5 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                          <div className="truncate pr-2">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Deployment URL</p>
+                            <p className="text-xs text-blue-600 font-bold truncate">{site.deployedUrl.replace('https://', '')}</p>
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); copyToClipboard(site.deployedUrl); }} className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-blue-600">
+                            <Copy size={16} />
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => navigate(`/preview/${site._id}`)} className="flex items-center justify-center py-3.5 bg-slate-900 text-white rounded-2xl text-sm font-bold">Edit Site</button>
+
+                        {!site.deployedUrl ? (
+                          <button 
+                            onClick={() => deployWebsite(site._id)} 
+                            disabled={deploying === site._id}
+                            className="flex items-center justify-center py-3.5 bg-blue-600 text-white rounded-2xl text-sm font-bold disabled:bg-slate-200"
+                          >
+                            {deploying === site._id ? <Loader2 className="animate-spin" size={18} /> : <Rocket size={18} />}
+                            Deploy
+                          </button>
+                        ) : (
+                          <button onClick={() => window.open(site.deployedUrl, '_blank')} className="flex items-center justify-center py-3.5 bg-emerald-50 text-emerald-700 rounded-2xl text-sm font-bold border border-emerald-100">
+                            Visit
+                          </button>
+                        )}
+                        
+                        <button onClick={() => deleteWebsite(site._id)} className="col-span-2 flex items-center justify-center py-2 text-slate-400 hover:text-red-500 text-[11px] font-bold mt-2">
+                          <Trash2 size={12} /> Delete Permanently
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

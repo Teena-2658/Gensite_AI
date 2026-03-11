@@ -81,202 +81,119 @@ GENERATE OR MODIFY WEBSITE
 -----------------------------------------
 */
 export const generateWebsite = async (req, res) => {
-
   const sendProgress = (percent, text) => {
     res.write(`data: ${JSON.stringify({ percent, text })}\n\n`);
   };
 
   try {
-
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive"
     });
 
-  const { prompt, websiteId } = req.method === "GET" ? req.query : req.body;  
-
-    sendProgress(5, "Checking prompt...");
-
-    if (!prompt) {
-      sendProgress(0, "Prompt missing");
-      return res.end();
-    }
-
-    sendProgress(10, "Checking authentication...");
-
-    if (!req.user) {
-      sendProgress(0, "User not authenticated");
+    const { prompt, websiteId } = req.method === "GET" ? req.query : req.body;
+    
+    if (!prompt || !req.user) {
+      sendProgress(0, "Authentication or Prompt missing");
       return res.end();
     }
 
     const user = await User.findById(req.user._id);
-
-    if (!user) {
-      sendProgress(0, "User not found");
-      return res.end();
-    }
-
     const cost = websiteId ? 25 : 50;
 
-    sendProgress(15, "Checking credits...");
-
-    if (!user.credits || user.credits < cost) {
+    if (!user || user.credits < cost) {
       sendProgress(0, "Insufficient credits");
       return res.end();
     }
 
-    const sanitizedPrompt = prompt.replace(/[<>]/g, "");
+    sendProgress(20, "AI is crafting your code...");
 
-    const finalPrompt = masterPrompt.replace(
-      "{USER_PROMPT}",
-      sanitizedPrompt
-    );
+    // AI से कोड जनरेट करवाना
+    const finalPrompt = masterPrompt.replace("{USER_PROMPT}", prompt.replace(/[<>]/g, ""));
+    const raw = await generateResponse(finalPrompt + "\n\nRETURN ONLY RAW JSON.");
+    const parsed = await extractJson(raw);
 
-    let raw = "";
-    let parsed = null;
-
-    sendProgress(25, "Sending request to AI...");
-
-    for (let i = 0; i < 3 && !parsed; i++) {
-
-      try {
-
-        raw = await generateResponse(
-          finalPrompt + "\n\nIMPORTANT: RETURN ONLY RAW JSON."
-        );
-
-        sendProgress(55, "AI generating website...");
-
-        parsed = await extractJson(raw);
-
-      } catch (aiError) {
-
-        console.error("⚠️ AI parsing attempt failed:", aiError.message);
-
-      }
-
-    }
-
-    if (!parsed) {
-
-      sendProgress(0, "AI parsing failed");
-
+    if (!parsed || !parsed.code) {
+      sendProgress(0, "AI generation failed");
       return res.end();
-
-    }
-
-    if (!parsed.code || !parsed.code.includes("<html")) {
-
-      sendProgress(0, "Invalid HTML generated");
-
-      return res.end();
-
     }
 
     let website;
+    let projectName;
 
-    sendProgress(70, "Preparing website data...");
-
-    /*
-    MODIFY WEBSITE
-    */
     if (websiteId) {
-
-      website = await Website.findOne({
-        _id: websiteId,
-        user: user._id
-      });
-
-      if (!website) {
-        sendProgress(0, "Website not found");
-        return res.end();
-      }
-
+      // --- MODIFY EXISTING WEBSITE ---
+      website = await Website.findOne({ _id: websiteId, user: user._id });
+      if (!website) { sendProgress(0, "Site not found"); return res.end(); }
+      
       website.latestCode = parsed.code;
-
-      website.conversation.push(
-        { role: "user", content: prompt },
-        { role: "ai", content: parsed.message }
-      );
-
-      await website.save();
-
-      console.log("✅ Website updated");
-
+      website.conversation.push({ role: "user", content: prompt }, { role: "ai", content: parsed.message });
+      
+      projectName = website.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").substring(0, 30) + "-" + website._id.toString().slice(-6);
+      sendProgress(80, "Auto-syncing changes to Vercel...");
+    } else {
+      // --- CREATE NEW WEBSITE ---
+      const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, "-").substring(0, 20) + "-" + Date.now();
+      website = await Website.create({
+        user: user._id,
+        title: prompt.split(" ").slice(0, 6).join(" "),
+        slug: slug,
+        latestCode: parsed.code,
+        conversation: [{ role: "user", content: prompt }, { role: "ai", content: parsed.message }]
+      });
+      projectName = slug;
+      sendProgress(80, "Deploying new site to Vercel...");
     }
 
-    /*
-    CREATE WEBSITE
-    */
-    else {
-
-      const slug =
-        prompt
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/(^-|-$)/g, "") +
-        "-" +
-        Date.now();
-
-      website = await Website.create({
-
-        user: user._id,
-
-        title: prompt.split(" ").slice(0, 6).join(" "),
-
-        slug: slug,
-
-        latestCode: parsed.code,
-
-        conversation: [
-          { role: "user", content: prompt },
-          { role: "ai", content: parsed.message }
-        ]
-
+    // --- VERCEL DEPLOYMENT LOGIC (SAME FOR NEW & MODIFY) ---
+    try {
+      const vercelReq = await fetch("https://api.vercel.com/v13/deployments", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.VERCEL_TOKEN.trim()}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: projectName,
+          files: [{ file: "index.html", data: parsed.code, encoding: "utf-8" }],
+          projectSettings: { framework: null },
+          target: "production"
+        })
       });
 
-      console.log("✅ Website created");
-
+      const vercelData = await vercelReq.json();
+      if (vercelReq.ok) {
+        website.deployed = true;
+        website.deployedUrl = `https://${vercelData.url}`;
+        console.log("🚀 Vercel Updated Successfully");
+      }
+    } catch (vErr) {
+      console.error("Vercel Sync Error:", vErr.message);
+      // हम एरर नहीं भेजेंगे क्योंकि DB में कोड सेव हो चुका है, यूजर मैन्युअली भी डिप्लॉय कर सकता है
     }
 
-    sendProgress(85, "Saving website...");
-
+    // क्रेडिट काटना और डेटा सेव करना
     user.credits -= cost;
-
     await user.save();
+    await website.save();
 
-    sendProgress(100, "Website generated successfully");
-
-    res.write(
-      `data: ${JSON.stringify({
-        done: true,
-        websiteId: website._id,
-        code: parsed.code,
-        message: parsed.message,
-        remainingCredits: user.credits
-      })}\n\n`
-    );
-
+    sendProgress(100, "Finished!");
+    res.write(`data: ${JSON.stringify({
+      done: true,
+      websiteId: website._id,
+      code: parsed.code,
+      remainingCredits: user.credits,
+      deployedUrl: website.deployedUrl
+    })}\n\n`);
+    
     res.end();
 
-  }
-
-  catch (error) {
-
-    console.error("❌ Website generation error:", error);
-
-    res.write(
-      `data: ${JSON.stringify({
-        error: true,
-        message: error.message
-      })}\n\n`
-    );
-
+  } catch (error) {
+    console.error("Critical Error:", error);
+    res.write(`data: ${JSON.stringify({ error: true, message: error.message })}\n\n`);
     res.end();
-
   }
-
 };
 
 
@@ -317,7 +234,7 @@ export const getUserWebsites = async (req, res) => {
     });
 
   }
-  
+
 };
 
 
@@ -369,10 +286,9 @@ export const getWebsiteById = async (req, res) => {
 DEPLOY WEBSITE
 -----------------------------------------
 */
+
 export const deployWebsite = async (req, res) => {
-
   try {
-
     const { id } = req.params;
 
     const website = await Website.findOne({
@@ -381,55 +297,63 @@ export const deployWebsite = async (req, res) => {
     });
 
     if (!website) {
-      return res.status(404).json({
-        message: "Website not found"
-      });
+      return res.status(404).json({ message: "Website not found" });
     }
 
-    const projectName =
-      website.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .substring(0, 30) +
-      "-" +
-      website._id.toString().slice(-6);
+  
+    const projectName = website.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .substring(0, 30) + "-" + website._id.toString().slice(-6);
+
+    console.log("🚀 Deploying to Vercel:", projectName);
 
     const vercelResponse = await fetch(
-      "https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1",
+      "https://api.vercel.com/v13/deployments",
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+        
+          Authorization: `Bearer ${process.env.VERCEL_TOKEN.trim()}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
           name: projectName,
+          projectSettings: { 
+            framework: null,
+            buildCommand: null,
+            installCommand: null,
+            outputDirectory: null
+          },
           files: [
             {
               file: "index.html",
-              data: website.latestCode
+              data: website.latestCode,
+              encoding: "utf-8" // UTF-8 एन्कोडिंग फिक्स
             }
-          ]
+          ],
+          target: "production" // इसे तुरंत लाइव करने के लिए
         })
       }
     );
 
     const data = await vercelResponse.json();
 
-    console.log("Vercel response:", data);
-
     if (!vercelResponse.ok) {
-      return res.status(500).json({
-        message: data.error?.message || "Vercel deployment failed"
+      console.error("❌ Vercel Error Details:", data.error);
+      return res.status(vercelResponse.status).json({
+        success: false,
+        message: data.error?.message || "Vercel deployment failed",
       });
     }
 
+    // DB Update
     const deployedUrl = `https://${data.url}`;
-
     website.deployed = true;
     website.deployedUrl = deployedUrl;
-
     await website.save();
+
+    console.log("✅ Live at:", deployedUrl);
 
     res.json({
       success: true,
@@ -437,16 +361,13 @@ export const deployWebsite = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error("Deploy error:", error);
-
+    console.error("❌ Critical Deploy Error:", error);
     res.status(500).json({
-      message: "Deployment failed",
+      success: false,
+      message: "Server Error",
       error: error.message
     });
-
   }
-
 };
 
 
