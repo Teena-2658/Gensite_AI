@@ -4,7 +4,7 @@ import authMiddleware from "../middlewares/isAuth.js";
 
 const router = express.Router();
 
-router.post("/checkout", authMiddleware, createCheckoutSession);
+router.post("/create-checkout", authMiddleware, createCheckoutSession);
 
 router.post("/verify", verifyPayment);
 

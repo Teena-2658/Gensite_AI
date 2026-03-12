@@ -4,27 +4,25 @@ dotenv.config();
 import Stripe from "stripe";
 import User from "../models/user.model.js";
 
-console.log("STRIPE KEY:", process.env.STRIPE_SECRET_KEY ? "Loaded ✅" : "Missing ❌");
-console.log("OPENROUTER KEY:", process.env.OPENROUTER_API_KEY ? "Loaded ✅" : "Missing ❌");
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
 /*
 -----------------------------------
 CREATE CHECKOUT SESSION
 -----------------------------------
 */
+
 export const createCheckoutSession = async (req, res) => {
-console.log("REQ USER:", req.user);
-console.log("BODY:", req.body);
+
   try {
 
     const { credits } = req.body;
 
-   const priceMap = {
-  100: 5000,   // ₹50
-  500: 20000,  // ₹200
-  1000: 35000  // ₹350
-};
+    const priceMap = {
+      10: 9900,
+      50: 39900,
+      100: 69900
+    };
 
     const amount = priceMap[credits];
 
@@ -85,9 +83,10 @@ console.log("BODY:", req.body);
 
 /*
 -----------------------------------
-VERIFY PAYMENT (NO WEBHOOK)
+VERIFY PAYMENT
 -----------------------------------
 */
+
 export const verifyPayment = async (req, res) => {
 
   try {
@@ -97,21 +96,38 @@ export const verifyPayment = async (req, res) => {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status !== "paid") {
+
       return res.status(400).json({
         message: "Payment not completed"
       });
+
     }
 
     const userId = session.metadata.userId;
-    const credits = Number(session.metadata.credits);
+    const creditsToAdd = Number(session.metadata.credits);
 
-    await User.findByIdAndUpdate(userId, {
-      $inc: { credits: credits }
-    });
+    const updatedUser = await User.findByIdAndUpdate(
+
+      userId,
+
+      {
+        $inc: { credits: creditsToAdd }
+      },
+
+      {
+        new: true
+      }
+
+    );
 
     res.json({
+
       success: true,
-      creditsAdded: credits
+
+      creditsAdded: creditsToAdd,
+
+      newBalance: updatedUser.credits
+
     });
 
   }
@@ -121,7 +137,7 @@ export const verifyPayment = async (req, res) => {
     console.error(error);
 
     res.status(500).json({
-      message: "Payment verification failed"
+      message: "Verification failed"
     });
 
   }

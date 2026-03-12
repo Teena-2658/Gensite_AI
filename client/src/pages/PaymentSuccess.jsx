@@ -1,58 +1,50 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { serverUrl } from "../constants";
+import { useSearchParams } from "react-router-dom";
+
 const PaymentSuccess = () => {
 
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [message, setMessage] = useState("Verifying payment...");
 
   useEffect(() => {
 
-    const verifyPayment = async () => {
+    const verify = async () => {
 
       try {
 
-        const sessionId = searchParams.get("session_id");
+        const session_id = params.get("session_id");
 
-       const res = await axios.post(
-  `${serverUrl}/api/payment/verify`,
-  { sessionId }
-);
+        const res = await axios.post(
+          "https://gensite-ai.onrender.com/api/payment/verify",
+          { sessionId: session_id },
+          { withCredentials: true }
+        );
 
-        alert(`Credits added: ${res.data.creditsAdded}`);
+        setMessage(`✅ ${res.data.creditsAdded} credits added!`);
 
-        navigate("/dashboard");
-
-      }
-
-      catch (error) {
+      } catch (error) {
 
         console.error(error);
-        alert("Payment verification failed");
-
-        navigate("/dashboard");
+        setMessage("❌ Payment verification failed");
 
       }
 
     };
 
-    verifyPayment();
+    verify();
 
-  }, []);
+  }, [params]);
 
   return (
-
-    <div className="min-h-screen flex items-center justify-center">
-
-      <h1 className="text-3xl font-bold">
-        Verifying payment...
-      </h1>
-
+    <div style={{
+      textAlign:"center",
+      marginTop:"120px",
+      fontFamily:"sans-serif"
+    }}>
+      <h1>{message}</h1>
     </div>
-
   );
-
 };
 
 export default PaymentSuccess;

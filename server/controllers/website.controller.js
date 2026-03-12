@@ -99,14 +99,25 @@ export const generateWebsite = async (req, res) => {
       return res.end();
     }
 
-    const user = await User.findById(req.user._id);
-    const cost = websiteId ? 25 : 50;
+   const user = await User.findById(req.user._id);
 
-    if (!user || user.credits < cost) {
-      sendProgress(0, "Insufficient credits");
-      return res.end();
-    }
+if (!user) {
+  sendProgress(0, "User not found");
+  return res.end();
+}
 
+// Cost logic same rakha
+const cost = websiteId ? 25 : 50;
+
+// Credit check
+if (user.credits < cost) {
+  sendProgress(0, "Insufficient credits");
+  return res.end();
+}
+
+// Credit deduct (secure)
+user.credits = user.credits - cost;
+await user.save();
     sendProgress(20, "AI is crafting your code...");
 
     // AI से कोड जनरेट करवाना
@@ -170,12 +181,9 @@ export const generateWebsite = async (req, res) => {
       }
     } catch (vErr) {
       console.error("Vercel Sync Error:", vErr.message);
-      // हम एरर नहीं भेजेंगे क्योंकि DB में कोड सेव हो चुका है, यूजर मैन्युअली भी डिप्लॉय कर सकता है
     }
 
-    // क्रेडिट काटना और डेटा सेव करना
-    user.credits -= cost;
-    await user.save();
+   
     await website.save();
 
     sendProgress(100, "Finished!");
