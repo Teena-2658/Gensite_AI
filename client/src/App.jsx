@@ -13,7 +13,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import PaymentSuccess from "./pages/PaymentSuccess.jsx";
 import PreviewPage from "./pages/PreviewPage";
 import useGetCurrentUser from "./hooks/useGetCurrentUser.jsx";
-
+import Templates from './pages/Templates';
 function App() {
   useGetCurrentUser();
 
@@ -35,7 +35,7 @@ function App() {
         <Route path="/payment-success" element={<PaymentSuccess />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
-
+      <Route path="/templates" element={<Templates />} />
       </Routes>
     </BrowserRouter>
   );
