@@ -182,3 +182,18 @@ export const TEMPLATES_DATA = [
     image: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?q=80&w=2070"
   }
 ];
+
+export const THEMES_DATA = [
+  { id: 1, name: "Neon Midnight", colors: "bg-[#0A0A0A] border-purple-600", primary: "#A855F7", font: "Inter", description: "Dark & Vibrant" },
+  { id: 2, name: "Oceanic Glass", colors: "bg-[#051923] border-cyan-400", primary: "#22D3EE", font: "Poppins", description: "Clean & Professional" },
+  { id: 3, name: "Royal Gold", colors: "bg-[#1A1A1A] border-amber-500", primary: "#F59E0B", font: "Montserrat", description: "Elegant & Classic" },
+  { id: 4, name: "Arctic White", colors: "bg-white border-slate-300 text-black", primary: "#000000", font: "Roboto", description: "Minimalist & Sharp" },
+];
+
+export const FONTS_DATA = [
+  { name: "Inter", family: "'Inter', sans-serif" },
+  { name: "Poppins", family: "'Poppins', sans-serif" },
+  { name: "Montserrat", family: "'Montserrat', sans-serif" },
+  { name: "Playfair Display", family: "'Playfair Display', serif" },
+  { name: "Roboto Mono", family: "'Roboto Mono', monospace" }
+];
