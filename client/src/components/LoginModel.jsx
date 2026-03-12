@@ -2,10 +2,8 @@ import React, { useState } from "react";
 import { signInWithPopup } from "firebase/auth";
 import { auth, provider } from "../firebase";
 import axios from "axios";
-import { X } from "lucide-react";
-
-const serverUrl = "http://localhost:8000";
-// const serverUrl = import.meta.env.VITE_API_URL;
+import { X, CheckCircle2, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { serverUrl } from "../constants"; // Make sure to use your constant
 
 const LoginModal = ({ open, onClose }) => {
   const [showSuccess, setShowSuccess] = useState(false);
@@ -16,8 +14,6 @@ const LoginModal = ({ open, onClose }) => {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-
-      // Firebase login
       const result = await signInWithPopup(auth, provider);
 
       const response = await axios.post(
@@ -35,24 +31,13 @@ const LoginModal = ({ open, onClose }) => {
         token: response.data.token
       };
 
-      // Save user
       localStorage.setItem("user", JSON.stringify(userData));
-
-      console.log("Saved user:", userData);
-
       setShowSuccess(true);
 
       setTimeout(() => {
-        setShowSuccess(false);
         onClose();
-
-        // ❌ dashboard redirect remove
-        // window.location.replace("/dashboard");
-
-        // ✔ stay on home and refresh UI
         window.location.reload();
-
-      }, 2000);
+      }, 1800);
 
     } catch (error) {
       console.error("Login Failed:", error);
@@ -63,68 +48,91 @@ const LoginModal = ({ open, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-[#020617]/90 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+      
+      <div className="relative w-full max-w-[400px] overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0f172a] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+        
+        {/* Top Decorative Glow */}
+        <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/20 blur-[80px]" />
+        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-600/20 blur-[80px]" />
 
-      {showSuccess && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-md z-50">
-          <div className="bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-500 p-10 rounded-3xl text-white text-center shadow-2xl animate-scaleIn">
-            <div className="text-6xl mb-4 animate-bounce">🎉</div>
-            <h2 className="text-2xl font-bold">Login Successful!</h2>
-            <p className="text-sm mt-2">Welcome to GenSite AI 🚀</p>
-          </div>
+        {/* Close Button */}
+        {!showSuccess && (
+          <button
+            onClick={onClose}
+            className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors z-10 p-1"
+          >
+            <X size={20} />
+          </button>
+        )}
+
+        <div className="relative p-10 py-12">
+          {!showSuccess ? (
+            /* --- LOGIN STATE --- */
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 text-center">
+              <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-blue-500/20">
+                <Sparkles className="text-blue-500" size={32} />
+              </div>
+
+              <h2 className="text-3xl font-black text-white mb-3 tracking-tight">
+                Welcome <span className="text-blue-500">Back</span>
+              </h2>
+              <p className="text-slate-400 text-sm mb-10 font-medium">
+                Log in to access your AI design workspace
+              </p>
+
+              <button
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="group relative w-full bg-white text-slate-950 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-slate-100 transition-all active:scale-95 disabled:opacity-70 disabled:active:scale-100 mb-6"
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin text-blue-600" size={20} />
+                ) : (
+                  <>
+                    <img
+                      src="https://www.svgrepo.com/show/475656/google-color.svg"
+                      alt="google"
+                      className="w-5 h-5"
+                    />
+                    CONTINUE WITH GOOGLE
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center gap-4 text-slate-600 text-[10px] font-black uppercase tracking-widest mb-8">
+                <div className="flex-1 h-px bg-slate-800"></div>
+                <div className="flex items-center gap-1.5"><ShieldCheck size={12}/> Secure Access</div>
+                <div className="flex-1 h-px bg-slate-800"></div>
+              </div>
+
+              <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
+                By signing in, you agree to our{" "}
+                <span className="text-slate-300 hover:underline cursor-pointer">Terms</span> &{" "}
+                <span className="text-slate-300 hover:underline cursor-pointer">Privacy</span>
+              </p>
+            </div>
+          ) : (
+            /* --- SUCCESS STATE (Professional) --- */
+            <div className="animate-in zoom-in-95 fade-in duration-500 text-center py-6">
+              <div className="relative w-24 h-24 mx-auto mb-8">
+                {/* Outer Glow Ring */}
+                <div className="absolute inset-0 bg-green-500/20 rounded-full animate-ping" />
+                <div className="relative w-24 h-24 bg-green-500/10 rounded-full border border-green-500/20 flex items-center justify-center">
+                  <CheckCircle2 className="text-green-500" size={48} />
+                </div>
+              </div>
+
+              <h2 className="text-3xl font-black text-white mb-2 tracking-tight">Authenticated</h2>
+              <p className="text-green-500/80 font-bold text-sm uppercase tracking-widest mb-6">Success</p>
+              
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-xl border border-white/5 text-slate-400 text-xs font-medium">
+                <Loader2 className="animate-spin" size={12} />
+                Preparing your dashboard...
+              </div>
+            </div>
+          )}
         </div>
-      )}
-
-      <div className="relative w-[420px] rounded-2xl border border-white/10 bg-gradient-to-br from-[#0f0f1a] to-[#07070c] p-8 shadow-2xl text-center">
-
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white"
-        >
-          <X size={20} />
-        </button>
-
-        <div className="inline-block px-3 py-1 mb-6 text-xs rounded-full bg-white/10 text-gray-300 border border-white/10">
-          AI-powered website builder
-        </div>
-
-        <h2 className="text-2xl font-bold text-white mb-2">
-          Welcome Back
-        </h2>
-
-        <p className="text-gray-400 text-sm mb-6">
-          Continue with Google to generate your AI website
-        </p>
-
-        <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="flex items-center justify-center gap-3 w-full bg-white text-black py-3 rounded-lg font-medium hover:bg-gray-200 transition disabled:opacity-50"
-        >
-          <img
-            src="https://www.svgrepo.com/show/475656/google-color.svg"
-            alt="google"
-            className="w-5 h-5"
-          />
-          {loading ? "Signing in..." : "Continue with Google"}
-        </button>
-
-        <div className="flex items-center gap-4 my-6 text-gray-500 text-sm">
-          <div className="flex-1 h-px bg-gray-700"></div>
-          Secure Login
-          <div className="flex-1 h-px bg-gray-700"></div>
-        </div>
-
-        <p className="text-xs text-gray-500 leading-relaxed">
-          By continuing, you agree to our{" "}
-          <span className="underline cursor-pointer">
-            Terms of Service
-          </span>{" "}
-          and{" "}
-          <span className="underline cursor-pointer">
-            Privacy Policy
-          </span>.
-        </p>
       </div>
     </div>
   );
