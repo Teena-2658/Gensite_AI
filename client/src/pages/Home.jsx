@@ -1,398 +1,524 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import LoginModal from "../components/LoginModel";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Zap, 
-  Smartphone, 
-  Rocket, 
-  CheckCircle2, 
-  ChevronRight, 
-  LogOut, 
-  LayoutDashboard,
-  User
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
+import {
+  Zap,
+  Sparkles,
+  Cpu,
+  ArrowRight,
+  ShieldCheck,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  Paperclip,
+  AtSign,
+  Send,
 } from "lucide-react";
+import { Twitter, Instagram, Youtube, Github } from "lucide-react";
+import TemplateCard from "../components/TemplateCard"; // Make sure this path is correct
+import { TEMPLATES_DATA } from "../constants"; // Correct import based on your constants.js
 
+/* ─────────────────────────────────────────────
+FAQ SECTION
+───────────────────────────────────────────── */
+const faqs = [
+  { question: "What is GenSite.AI?", answer: "GenSite.AI turns your text description into a complete responsive website instantly." },
+  { question: "How do credits work?", answer: "Credits are pay-as-you-go. Generate websites using credits without monthly subscriptions." },
+  { question: "Do I own the generated code?", answer: "Yes. You get exportable HTML / React / Next.js code." },
+];
+
+function FAQSection() {
+  const [openIndex, setOpenIndex] = useState(null);
+  const toggleFAQ = (index) => setOpenIndex(openIndex === index ? null : index);
+
+  return (
+    <section id="faq" className="py-20 px-5 bg-[#050816]">
+      <div className="max-w-3xl mx-auto space-y-4">
+        <h2 className="text-3xl font-bold text-center mb-10 text-white">Frequently Asked Questions</h2>
+        {faqs.map((faq, index) => (
+          <div
+            key={index}
+            className="border border-white/5 rounded-2xl bg-white/[0.02] backdrop-blur-md overflow-hidden"
+          >
+            <button
+              onClick={() => toggleFAQ(index)}
+              className="w-full px-6 py-5 flex justify-between items-center text-left transition-colors hover:bg-white/[0.03]"
+            >
+              <span className="font-medium text-slate-200">{faq.question}</span>
+              {openIndex === index ? (
+                <ChevronUp className="text-blue-500" />
+              ) : (
+                <ChevronDown className="text-slate-500" />
+              )}
+            </button>
+            <AnimatePresence>
+              {openIndex === index && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-6 pb-6 text-slate-400 text-sm leading-relaxed">{faq.answer}</div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────────
+TESTIMONIAL CARD
+───────────────────────────────────────────── */
+const TestimonialCard = ({ name, handle, text, imageUrl }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 40 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, margin: "-80px" }}
+    transition={{ duration: 0.7 }}
+    className="w-[400px] flex-shrink-0 bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-3xl p-8 hover:border-blue-500/50 transition-all duration-300 group"
+  >
+    <div className="flex items-center gap-4 mb-6">
+      <img
+        src={imageUrl || `https://ui-avatars.com/api/?name=${name}&background=0D8ABC&color=fff`}
+        alt={name}
+        className="w-12 h-12 rounded-full object-cover border border-white/10"
+      />
+      <div className="text-left">
+        <p className="font-bold text-slate-100 group-hover:text-blue-400 transition-colors">{name}</p>
+        <p className="text-sm text-slate-500">{handle}</p>
+      </div>
+    </div>
+    <p className="text-slate-300 text-base leading-relaxed text-left italic">"{text}"</p>
+  </motion.div>
+);
+
+/* ─────────────────────────────────────────────
+HOME PAGE
+───────────────────────────────────────────── */
 export default function Home() {
   const [openLogin, setOpenLogin] = useState(false);
   const [user, setUser] = useState(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-
+  const [billingCycle, setBillingCycle] = useState("monthly");
   const navigate = useNavigate();
 
-  const storedUser = localStorage.getItem("user");
-  const userData = storedUser ? JSON.parse(storedUser) : null;
+  const [displayText, setDisplayText] = useState("");
+  const [promptIndex, setPromptIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  /* FIREBASE AUTH LISTENER */
+  const showcasePrompts = [
+    "Build a professional portfolio for a creative designer...",
+    "Create a customer support portal for my SaaS...",
+    "Generate a lead generation landing page for marketing...",
+    "Make an outbound sales website with integrated calls...",
+  ];
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) setUser(currentUser);
-      else setUser(null);
-    });
-    return () => unsubscribe();
+    const unsub = onAuthStateChanged(auth, setUser);
+    return unsub;
   }, []);
 
-  /* PROTECTED ACTION */
+  useEffect(() => {
+    const current = showcasePrompts[promptIndex];
+    const speed = isDeleting ? 30 : 60;
+    const timeout = setTimeout(() => {
+      if (!isDeleting) {
+        setDisplayText(current.substring(0, displayText.length + 1));
+        if (displayText === current) setTimeout(() => setIsDeleting(true), 2000);
+      } else {
+        setDisplayText(current.substring(0, displayText.length - 1));
+        if (displayText === "") {
+          setIsDeleting(false);
+          setPromptIndex((prev) => (prev + 1) % showcasePrompts.length);
+        }
+      }
+    }, speed);
+    return () => clearTimeout(timeout);
+  }, [displayText, isDeleting, promptIndex]);
+
   const handleProtectedAction = () => {
-    const stored = localStorage.getItem("user");
-    if (stored) navigate("/dashboard");
+    if (user) navigate("/dashboard");
     else setOpenLogin(true);
   };
 
-  /* BUY CREDITS */
-  const buyCredits = (credits) => {
-    const stored = localStorage.getItem("user");
-    if (!stored) {
-      setOpenLogin(true);
-      return;
-    }
-    alert(`Redirecting to buy ${credits} credits`);
-    navigate("/dashboard");
-  };
+  const pricingPlans = [
+    { name: "Starter", price: 29, desc: "Start smart with AI", features: ["1 Agent", "Automation", "AI Chat"] },
+    { name: "Growth", price: 49, desc: "Scale faster with Agents", features: ["5 Agents", "Advanced Flows", "Smart Memory"] },
+    { name: "Scale", price: 149, desc: "Maximum automation", features: ["Unlimited Agents", "Custom Flows", "Long Term Memory"], popular: true },
+    { name: "Enterprise", price: 550, desc: "AI infrastructure built", features: ["Custom Agents", "Process Automation", "Multi-System AI"] },
+  ];
 
-  /* LOGOUT */
-  const handleLogout = async () => {
-    await signOut(auth);
-    localStorage.removeItem("user");
-    setUser(null);
-    setDropdownOpen(false);
-    navigate("/");
-  };
+  const testimonials = [
+    {
+      name: "Sophia Turner",
+      handle: "@sophia_branding",
+      text: "As someone with zero coding experience, I was worried about building my website. But this template made it so easy!",
+      row: 1,
+      imageUrl: "https://thumbs.dreamstime.com/b/woman-portrait-confident-office-creativity-smile-space-design-startup-person-happy-arms-crossed-creative-agency-career-360903459.jpg"
+    },
+    {
+      name: "Emma Collins",
+      handle: "@emma_creates",
+      text: "I've tried many builders, but the AI integration here is next level. It actually understands what I want.",
+      row: 1,
+      imageUrl: "https://thumbs.dreamstime.com/b/portrait-happy-young-business-woman-isolated-gray-background-mockup-space-face-professional-smile-creative-designer-299579917.jpg"
+    },
+    {
+      name: "Noah Reed",
+      handle: "@noah_builds",
+      text: "As a first-time founder, I had no idea where to start. This template gave me confidence and made the process smooth.",
+      row: 2,
+      imageUrl: "https://thumbs.dreamstime.com/b/social-media-presence-head-shot-portrait-modern-confident-handsome-young-businessman-beard-glasses-startup-founder-office-409567026.jpg"
+    },
+    {
+      name: "Liam Bennet",
+      handle: "@liam_dev",
+      text: "I never imagined building a site could be this easy. The AI guided me at every stage, and my website now feels pro.",
+      row: 2,
+      imageUrl: "https://as1.ftcdn.net/jpg/06/33/80/44/1000_F_633804450_DWH5bj77LdDwlCSvMcqy6qVk4j9kchT3.jpg"
+    },
+    {
+      name: "Isabella Hayes",
+      handle: "@isabella_designs",
+      text: "Stunning designs generated automatically. All I had to do was click 'generate' and tweak a few things!",
+      row: 2,
+      imageUrl: "https://thumbs.dreamstime.com/b/attractive-young-woman-smiles-portrait-fashion-designer-office-attractive-young-woman-smiles-portrait-fashion-designer-287245443.jpg"
+    },
+  ];
 
-  // Animation Variants
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true },
-    transition: { duration: 0.6 }
-  };
+  const row1 = testimonials.filter((t) => t.row === 1);
+  const row2 = testimonials.filter((t) => t.row === 2);
+
+  // Parallax refs & values
+  const heroRef = useRef(null);
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+
+  const bgY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
+  const titleY = useTransform(scrollYProgress, [0, 1], ["0%", "-15%"]);
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-700">
-      
-      {/* ================= NAVBAR ================= */}
-      <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2 cursor-pointer"
+    <div className="bg-[#050816] min-h-screen text-white overflow-x-hidden">
+      {/* NAVBAR */}
+      <nav className="fixed top-0 w-full z-50 bg-[#050816]/80 backdrop-blur-md border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          {/* Logo */}
+          <div 
+            className="flex items-center gap-2 font-bold text-xl cursor-pointer" 
             onClick={() => navigate("/")}
           >
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
-              <Zap className="text-white fill-current" size={22} />
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30">
+              <Zap size={16} fill="currentColor" />
             </div>
-            <span className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-700">
-              GenSite AI
-            </span>
-          </motion.div>
-
-          <div className="flex items-center gap-6">
-            {!user ? (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setOpenLogin(true)}
-                className="px-6 py-2.5 bg-slate-900 text-white rounded-full font-medium hover:bg-slate-800 transition-all shadow-md"
-              >
-                Get Started
-              </motion.button>
-            ) : (
-              <div className="relative">
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  className="flex items-center gap-3 p-1 pr-4 bg-gray-50 rounded-full border cursor-pointer hover:bg-gray-100 transition-colors"
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                >
-                  <img
-                    src={user.photoURL || "https://i.pravatar.cc/40"}
-                    alt="user"
-                    className="w-8 h-8 rounded-full border-2 border-white shadow-sm"
-                  />
-                  <span className="text-sm font-semibold text-slate-700">Account</span>
-                </motion.div>
-
-                <AnimatePresence>
-                  {dropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 mt-3 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-3 z-50"
-                    >
-                      <div className="px-4 py-3 border-b border-gray-50 mb-2">
-                        <p className="font-bold text-slate-900 truncate">{user.displayName}</p>
-                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
-                      </div>
-
-                      <button
-                        onClick={() => { navigate("/dashboard"); setDropdownOpen(false); }}
-                        className="w-full flex items-center gap-3 text-left py-2.5 hover:bg-blue-50 hover:text-blue-600 transition-colors rounded-xl px-3 text-slate-600 font-medium"
-                      >
-                        <LayoutDashboard size={18} /> Dashboard
-                      </button>
-                      
-                      <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-3 text-left py-2.5 text-red-500 hover:bg-red-50 transition-colors rounded-xl px-3 font-medium"
-                      >
-                        <LogOut size={18} /> Logout
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
+            GenSite
           </div>
+
+          {/* Desktop Navigation Links */}
+          <div className="hidden md:flex items-center gap-8 text-slate-400 text-sm">
+            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+            <a href="#testimonials" className="hover:text-white transition-colors">Testimonials</a>
+            <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
+          </div>
+
+          {/* CTA Button */}
+          <button
+            onClick={handleProtectedAction}
+            className="px-5 py-2 rounded-full bg-white text-black font-semibold text-sm hover:bg-slate-200 transition-all shadow-xl"
+          >
+            Get Started
+          </button>
         </div>
       </nav>
 
-      {/* ================= HERO ================= */}
-      <section className="relative pt-24 pb-20 px-6 overflow-hidden">
-        {/* Background Gradients */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10 pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-100/50 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 right-[-5%] w-[30%] h-[30%] bg-emerald-100/50 rounded-full blur-[100px]" />
-        </div>
-
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 items-center gap-16">
-          <motion.div 
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            className="text-center lg:text-left"
+      {/* HERO with subtle parallax */}
+      <section ref={heroRef} id="home" className="relative pt-40 pb-16 overflow-hidden text-center">
+        <motion.div
+          style={{ y: bgY }}
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[700px] bg-blue-600/10 blur-[140px] rounded-full pointer-events-none"
+        />
+        <div className="max-w-5xl mx-auto px-6 relative z-10">
+          <motion.h1
+            style={{ y: titleY }}
+            className="text-5xl md:text-7xl font-bold tracking-tight mb-6"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-bold mb-6">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
-              </span>
-              New: AI Engine v3.0 is live
+            The AI Agent for <br />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-300 italic">
+              building websites
+            </span>
+          </motion.h1>
+          <p className="text-slate-400 max-w-2xl mx-auto text-lg md:text-xl mb-10 leading-relaxed">
+            From idea to production-ready website in seconds. Describe your vision and let GenSite.AI handle the rest.
+          </p>
+
+          {/* AI CHAT BOX */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.8 }}
+            className="max-w-3xl mx-auto bg-[#0b1224] border border-white/10 rounded-2xl p-4 shadow-2xl relative"
+          >
+            <div className="flex items-start gap-3 min-h-[60px] text-left px-2">
+              <div className="text-slate-200 text-lg font-medium py-2">
+                {displayText}
+                <span className="inline-block w-[2px] h-5 ml-1 bg-blue-500 animate-pulse align-middle" />
+              </div>
             </div>
-
-            <h1 className="text-5xl lg:text-7xl font-black leading-[1.1] mb-8 tracking-tight text-slate-900">
-              Build Stunning <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500">
-                Websites in Seconds
-              </span>
-            </h1>
-
-            <p className="text-xl text-slate-600 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-              The world's most advanced AI website builder. Just describe your vision and watch the magic happen. Responsive, fast, and ready to launch.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <motion.button
-                whileHover={{ scale: 1.05, boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)" }}
-                whileTap={{ scale: 0.95 }}
+            <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/5">
+              <div className="flex gap-2 items-center">
+                <button className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-300 flex items-center gap-2">
+                  <Sparkles size={14} className="text-blue-400" /> Prompt Builder
+                </button>
+                <button className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-300 flex items-center gap-2">
+                  <Cpu size={14} className="text-purple-400" /> Gemini 3 Pro
+                </button>
+                <div className="flex gap-3 items-center px-4 border-l border-white/10 ml-2">
+                  <AtSign size={16} className="text-slate-500 cursor-pointer hover:text-white transition-colors" />
+                  <Paperclip size={16} className="text-slate-500 cursor-pointer hover:text-white transition-colors" />
+                </div>
+              </div>
+              <div
                 onClick={handleProtectedAction}
-                className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 group shadow-xl"
+                className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/40 cursor-pointer hover:scale-105 transition-transform"
               >
-                {userData ? "Go to Dashboard" : "Start Building Free"}
-                <ChevronRight className="group-hover:translate-x-1 transition-transform" />
-              </motion.button>
-              
-              <button className="px-10 py-5 rounded-2xl font-bold text-lg border-2 border-slate-200 hover:bg-slate-50 transition-colors">
-                View Showcase
-              </button>
+                <Send size={18} fill="white" className="ml-0.5" />
+              </div>
             </div>
           </motion.div>
 
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="relative"
-          >
-            <div className="relative z-10 bg-white p-4 rounded-[2.5rem] shadow-2xl border border-gray-100">
-              <img
-                src="https://cdn-icons-png.flaticon.com/512/1055/1055687.png"
-                alt="AI Website Builder"
-                className="w-full max-w-md mx-auto transform -rotate-2 hover:rotate-0 transition-transform duration-500"
-              />
-            </div>
-            {/* Decorative Elements */}
-            <div className="absolute -top-6 -right-6 w-32 h-32 bg-emerald-400/20 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-blue-400/20 rounded-full blur-3xl" />
-          </motion.div>
+          {/* PILLS */}
+          <div className="flex flex-wrap justify-center gap-3 mt-10 max-w-4xl mx-auto">
+            {["Personal Website", "Customer Support", "Outbound Sales Calls", "Meet Recorder", "Lead Gen"].map((pill) => (
+              <motion.button
+                key={pill}
+                whileHover={{ scale: 1.05 }}
+                className="px-5 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-slate-300 hover:bg-white/10 transition-all flex items-center gap-2"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500/60 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                {pill}
+              </motion.button>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* ================= FEATURES ================= */}
-      <section className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <motion.div 
-            {...fadeInUp}
-            className="text-center mb-20"
-          >
-            <h2 className="text-blue-600 font-bold tracking-widest uppercase text-sm mb-4">Core Capabilities</h2>
-            <h3 className="text-4xl md:text-5xl font-black text-slate-900">Why Choose GenSite AI</h3>
-          </motion.div>
+      {/* PRICING - reduced padding */}
+      <section id="pricing" className="py-20 bg-[#050816] relative">
+        <div className="max-w-7xl mx-auto px-6 text-center">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">Pricing Plans</h2>
+          <p className="text-slate-400 mb-10">Intelligent AI agents built to automate, optimize, and scale your business.</p>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              { 
-                icon: <Zap className="text-blue-600" />, 
-                title: "Instant Generation", 
-                desc: "Describe your business and get a full-scale website in under 30 seconds.",
-                color: "bg-blue-50"
-              },
-              { 
-                icon: <Smartphone className="text-emerald-600" />, 
-                title: "Fully Responsive", 
-                desc: "Every pixel is automatically optimized for mobile, tablet, and desktop screens.",
-                color: "bg-emerald-50"
-              },
-              { 
-                icon: <Rocket className="text-purple-600" />, 
-                title: "One Click Deploy", 
-                desc: "Publish instantly to our global edge network with custom domain support.",
-                color: "bg-purple-50"
-              }
-            ].map((feature, idx) => (
-              <motion.div
-                key={idx}
-                {...fadeInUp}
-                transition={{ delay: idx * 0.1 }}
-                whileHover={{ y: -10 }}
-                className="p-10 bg-gray-50/50 rounded-3xl border border-transparent hover:border-gray-200 hover:bg-white hover:shadow-xl transition-all group"
+          <div className="flex justify-center items-center gap-4 mb-12">
+            <div className="bg-white/5 border border-white/10 p-1 rounded-full flex items-center">
+              <button
+                onClick={() => setBillingCycle("monthly")}
+                className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${billingCycle === "monthly" ? "bg-blue-600 text-white" : "text-slate-400"}`}
               >
-                <div className={`w-14 h-14 ${feature.color} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-                  {feature.icon}
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingCycle("yearly")}
+                className={`px-6 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${billingCycle === "yearly" ? "bg-blue-600 text-white" : "text-slate-400"}`}
+              >
+                Yearly <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded">-20%</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-6">
+            {pricingPlans.map((plan, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.7, delay: i * 0.1 }}
+                className={`relative rounded-3xl p-7 border transition-all duration-300 flex flex-col ${plan.popular ? "bg-[#0b1224] border-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.15)] scale-105" : "bg-white/[0.02] border-white/5"}`}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-widest">
+                    Popular
+                  </div>
+                )}
+                <div className="text-left mb-6">
+                  <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
+                  <p className="text-slate-500 text-sm mb-4">{plan.desc}</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-bold">
+                      ${billingCycle === "monthly" ? plan.price : Math.floor(plan.price * 0.8)}
+                    </span>
+                    <span className="text-slate-500">/month</span>
+                  </div>
                 </div>
-                <h3 className="text-2xl font-bold mb-4 text-slate-900">{feature.title}</h3>
-                <p className="text-slate-600 leading-relaxed">
-                  {feature.desc}
-                </p>
+
+                <button
+                  onClick={handleProtectedAction}
+                  className={`w-full py-3 rounded-2xl font-semibold mb-8 transition-all ${plan.popular ? "bg-blue-600 text-white hover:bg-blue-500" : "bg-white/5 text-white hover:bg-white/10 border border-white/10"}`}
+                >
+                  Choose this plan
+                </button>
+
+                <div className="text-left mt-auto">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">What's included:</p>
+                  <ul className="space-y-3">
+                    {plan.features.map((feat, idx) => (
+                      <li key={idx} className="flex items-center gap-3 text-sm text-slate-300">
+                        <div className="w-5 h-5 rounded-md bg-white/5 border border-white/10 flex items-center justify-center">
+                          <Zap size={10} className="text-blue-500" />
+                        </div>
+                        {feat}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ================= PRICING ================= */}
-      <section className="py-24 bg-slate-50 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 relative z-10">
-          <motion.div {...fadeInUp} className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black mb-6">Simple, Honest Pricing</h2>
-            <p className="text-slate-600 max-w-2xl mx-auto text-lg">
-              No subscriptions. No hidden fees. Just buy credits when you need them and build at your own pace.
-            </p>
-          </motion.div>
+      {/* BRAND LOGOS - reduced padding */}
+      <section className="py-16 border-t border-white/5">
+        <div className="max-w-6xl mx-auto px-6 flex flex-wrap justify-center items-center gap-12 md:gap-20 opacity-50 hover:opacity-100 transition-opacity duration-700 grayscale">
+          <div className="flex items-center gap-2 text-2xl font-bold tracking-tighter">
+            <div className="bg-white text-black px-1.5 py-0.5 rounded text-sm">M</div> MILANO
+          </div>
+          <div className="text-2xl font-black tracking-widest">SAVANNAH</div>
+          <div className="flex items-center gap-2 text-2xl font-semibold">
+            <div className="w-6 h-6 border-2 border-white rounded-full bg-white/20" /> Amsterdam
+          </div>
+          <div className="text-3xl font-serif italic">theo</div>
+        </div>
+      </section>
 
-          <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {/* BASIC */}
-            <motion.div 
-              {...fadeInUp}
-              whileHover={{ scale: 1.02 }}
-              className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col"
+   <div className="text-center mt-16">
+  <button
+    onClick={() => navigate("/templates")}
+    className="inline-flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-full transition-all shadow-lg shadow-blue-600/25"
+  >
+    Explore Templates <ArrowRight size={20} />
+  </button>
+</div>
+
+      {/* ────────── TESTIMONIAL MARQUEE ────────── */}
+      <section id="testimonials" className="py-20 overflow-hidden">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight">
+            What Our Users Say
+          </h2>
+          <p className="text-slate-400 max-w-xl mx-auto">
+            Real people building real websites faster with GenSite.AI
+          </p>
+        </div>
+        <div className="flex flex-col gap-8">
+          <div className="flex overflow-hidden relative">
+            <motion.div
+              className="flex gap-6 whitespace-nowrap"
+              animate={{ x: ["0%", "-50%"] }}
+              transition={{ repeat: Infinity, ease: "linear", duration: 30 }}
             >
-              <h3 className="text-lg font-bold text-slate-500 mb-2">Starter</h3>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-4xl font-black">₹99</span>
-                <span className="text-slate-400">/one-time</span>
-              </div>
-              <ul className="space-y-4 mb-8 flex-grow">
-                {['50 Credits', 'Basic AI Templates', 'Community Support'].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-slate-600">
-                    <CheckCircle2 size={18} className="text-emerald-500" /> {item}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => buyCredits(50)}
-                className="w-full py-4 rounded-xl font-bold border-2 border-slate-100 hover:bg-slate-900 hover:text-white transition-all"
-              >
-                Buy Credits
-              </button>
+              {[...row1, ...row1, ...row1].map((t, i) => (
+                <TestimonialCard key={`r1-${i}`} {...t} />
+              ))}
             </motion.div>
-
-            {/* POPULAR */}
-            <motion.div 
-              {...fadeInUp}
-              whileHover={{ scale: 1.05 }}
-              className="bg-white p-8 rounded-[2.2rem] shadow-2xl border-2 border-blue-600 relative overflow-hidden flex flex-col"
+          </div>
+          <div className="flex overflow-hidden relative">
+            <motion.div
+              className="flex gap-6 whitespace-nowrap"
+              animate={{ x: ["-50%", "0%"] }}
+              transition={{ repeat: Infinity, ease: "linear", duration: 35 }}
             >
-              <div className="absolute top-0 right-0 bg-blue-600 text-white px-6 py-1 rounded-bl-2xl font-bold text-xs uppercase tracking-widest">
-                Most Popular
-              </div>
-              <h3 className="text-lg font-bold text-blue-600 mb-2">Popular</h3>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-5xl font-black">₹299</span>
-                <span className="text-slate-400">/one-time</span>
-              </div>
-              <ul className="space-y-4 mb-8 flex-grow">
-                {['200 Credits', 'Premium AI Engine', 'Custom Domains', 'Priority Support'].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-slate-700 font-medium">
-                    <CheckCircle2 size={18} className="text-blue-500 fill-blue-50" /> {item}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => buyCredits(200)}
-                className="w-full py-4 rounded-xl font-bold bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
-              >
-                Buy Credits
-              </button>
-            </motion.div>
-
-            {/* PRO */}
-            <motion.div 
-              {...fadeInUp}
-              whileHover={{ scale: 1.02 }}
-              className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col"
-            >
-              <h3 className="text-lg font-bold text-slate-500 mb-2">Pro</h3>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-4xl font-black">₹599</span>
-                <span className="text-slate-400">/one-time</span>
-              </div>
-              <ul className="space-y-4 mb-8 flex-grow">
-                {['500 Credits', 'Unrestricted Access', 'White-label Exports', 'VIP Support'].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-slate-600">
-                    <CheckCircle2 size={18} className="text-emerald-500" /> {item}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => buyCredits(500)}
-                className="w-full py-4 rounded-xl font-bold border-2 border-slate-100 hover:bg-slate-900 hover:text-white transition-all"
-              >
-                Buy Credits
-              </button>
+              {[...row2, ...row2, ...row2].map((t, i) => (
+                <TestimonialCard key={`r2-${i}`} {...t} />
+              ))}
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* ================= FOOTER ================= */}
-      <footer className="bg-white py-12 px-6 border-t border-gray-100">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
-              <Zap className="text-white fill-current" size={16} />
+      <FAQSection />
+
+      {/* FOOTER - reduced padding */}
+      <footer className="bg-[#050816] text-white pt-16 pb-10 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-16">
+            <div>
+              <div className="flex items-center gap-2 font-bold text-2xl mb-5">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
+                  <Zap size={20} fill="currentColor" />
+                </div>
+                Agenly
+              </div>
+              <p className="text-slate-400 text-sm leading-relaxed mb-6 max-w-[240px]">
+                Agenly — Automate Smarter, Optimize Faster, and Grow Stronger.
+              </p>
+              <div className="flex gap-5 text-slate-500">
+                <Twitter size={18} className="hover:text-white cursor-pointer transition-colors" />
+                <Instagram size={18} className="hover:text-white cursor-pointer transition-colors" />
+                <Youtube size={18} className="hover:text-white cursor-pointer transition-colors" />
+                <Github size={18} className="hover:text-white cursor-pointer transition-colors" />
+              </div>
             </div>
-            <span className="text-xl font-bold">GenSite AI</span>
-          </div>
-          
-          <div className="text-slate-500 text-sm">
-            © {new Date().getFullYear()} GenSite AI. Made with ❤️ for creators.
+
+            <div className="grid grid-cols-3 col-span-3 gap-8">
+              <div>
+                <h4 className="font-semibold mb-5 text-slate-200">Pages</h4>
+                <ul className="space-y-3 text-slate-400 text-sm">
+                  <li><a href="/" className="hover:text-blue-400 transition-colors">Home</a></li>
+                  <li><a href="/blog" className="hover:text-blue-400 transition-colors">Blog</a></li>
+                  <li><a href="/404" className="hover:text-blue-400 transition-colors">404</a></li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold mb-5 text-slate-200">Links</h4>
+                <ul className="space-y-3 text-slate-400 text-sm">
+                  <li><a href="#services" className="hover:text-blue-400 transition-colors">Services</a></li>
+                  <li><a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing</a></li>
+                  <li><a href="#benefits" className="hover:text-blue-400 transition-colors">Benefits</a></li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold mb-5 text-slate-200">Information</h4>
+                <ul className="space-y-3 text-slate-400 text-sm">
+                  <li><a href="/contact" className="hover:text-blue-400 transition-colors">Contact</a></li>
+                  <li><a href="/privacy" className="hover:text-blue-400 transition-colors">Privacy</a></li>
+                  <li><a href="/terms" className="hover:text-blue-400 transition-colors">Terms</a></li>
+                </ul>
+              </div>
+            </div>
           </div>
 
-          <div className="flex gap-6 text-sm font-medium text-slate-600">
-            <a href="#" className="hover:text-blue-600 transition-colors">Privacy</a>
-            <a href="#" className="hover:text-blue-600 transition-colors">Terms</a>
-            <a href="#" className="hover:text-blue-600 transition-colors">Contact</a>
+          <div className="pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+            <h3 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Get Free Smart Note Workflows
+            </h3>
+            <div className="flex w-full md:w-auto gap-3 p-1.5 bg-white/5 border border-white/10 rounded-full max-w-md">
+              <input
+                type="email"
+                placeholder="Enter your Email"
+                className="bg-transparent border-none outline-none px-6 py-2 text-sm flex-grow text-white placeholder:text-slate-500"
+              />
+              <button className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-full text-sm font-semibold transition-all">
+                Subscribe
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-12 text-center text-slate-600 text-xs tracking-widest uppercase">
+            © {new Date().getFullYear()} Agenly AI. All rights reserved.
           </div>
         </div>
       </footer>
 
-      <LoginModal
-        open={openLogin}
-        onClose={() => setOpenLogin(false)}
-      />
+      <LoginModal open={openLogin} onClose={() => setOpenLogin(false)} />
     </div>
   );
 }
