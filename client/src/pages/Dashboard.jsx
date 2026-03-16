@@ -4,13 +4,12 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { serverUrl } from "../constants";
 import { 
   Zap, PlusCircle, Globe, Trash2, Sparkles, LayoutGrid, 
-  Palette, Loader2, ArrowRight, CreditCard, Monitor, LogOut, Layers
+  Palette, Loader2, ArrowRight, Monitor, LogOut, ExternalLink, Calendar
 } from "lucide-react";
 
 const Dashboard = () => {
   const [prompt, setPrompt] = useState("");
   const [selectedModel, setSelectedModel] = useState("openai/gpt-4o-mini");
-  const [templateImg, setTemplateImg] = useState(null);
   const [websites, setWebsites] = useState([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -32,44 +31,30 @@ const Dashboard = () => {
     { id: "google/gemini-pro-1.5", name: "Gemini 1.5 Pro", icon: "✨", speed: "Deep" },
   ];
 
-
-  // Dashboard.jsx snippets
-
-// Effect 1: Listen for navigation state (from PaymentSuccess)
-useEffect(() => {
-  if (location.state?.refresh) {
-    const updatedUser = JSON.parse(localStorage.getItem("user"));
-    if (updatedUser?.credits !== undefined) {
-      setCredits(updatedUser.credits);
-    }
-  }
-}, [location.state]);
-
-// Effect 2: Comprehensive Initial Load
-useEffect(() => {
-  if (!token) {
-    navigate("/");
-    return;
-  }
-
-  // Always pull the latest credits from localStorage on mount
-  const user = JSON.parse(localStorage.getItem("user"));
-  if (user?.credits !== undefined) {
-    setCredits(user.credits);
-  }
-  
-  fetchWebsites();
-}, [token]);
-  // Logic for syncing credits and prompts remains the same...
+  // Auto-resize Logic for Dashboard Textarea
   useEffect(() => {
-    if (location.state?.newCredits !== undefined) {
-      setCredits(location.state.newCredits);
-      const user = JSON.parse(localStorage.getItem("user"));
-      if (user) { user.credits = location.state.newCredits; localStorage.setItem("user", JSON.stringify(user)); }
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
-  }, [location.state]);
+  }, [prompt]);
 
   useEffect(() => {
+    if (!token) {
+      navigate("/");
+      return;
+    }
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (user?.credits !== undefined) setCredits(user.credits);
+    fetchWebsites();
+  }, [token]);
+
+  // Handle Location state for credits and prompt focus
+  useEffect(() => {
+    if (location.state?.refresh || location.state?.newCredits !== undefined) {
+      const updatedCredits = location.state.newCredits || JSON.parse(localStorage.getItem("user"))?.credits;
+      if (updatedCredits !== undefined) setCredits(updatedCredits);
+    }
     if (location.state?.selectedPrompt) {
       setPrompt(location.state.selectedPrompt);
       setTimeout(() => {
@@ -80,12 +65,6 @@ useEffect(() => {
       }, 300);
     }
   }, [location.state]);
-
-  useEffect(() => {
-    if (!token) navigate("/");
-    if (userData?.credits !== undefined) setCredits(userData.credits);
-    if (token) fetchWebsites();
-  }, [token]);
 
   const fetchWebsites = async () => {
     try {
@@ -123,8 +102,7 @@ useEffect(() => {
             if (data.text) setStatusText(data.text);
             if (data.done) {
               setCredits(data.remainingCredits);
-              const updatedUser = { ...userData, credits: data.remainingCredits };
-              localStorage.setItem("user", JSON.stringify(updatedUser));
+              localStorage.setItem("user", JSON.stringify({ ...userData, credits: data.remainingCredits }));
               setPrompt(""); fetchWebsites(); setLoading(false);
             }
           }
@@ -145,7 +123,7 @@ useEffect(() => {
   return (
     <div className="min-h-screen bg-[#050816] text-slate-200 font-sans selection:bg-blue-500/30">
       
-      {/* NAVBAR - Synced with Home */}
+      {/* NAVBAR */}
       <nav className="fixed top-0 w-full z-50 bg-[#050816]/80 backdrop-blur-lg border-b border-white/5">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-6">
@@ -155,25 +133,18 @@ useEffect(() => {
               </div>
               <span className="text-2xl font-bold tracking-tighter text-white">GenSite</span>
             </div>
-
-            <div className="h-6 w-px bg-white/10 hidden md:block" />
-
             <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
-              <button onClick={() => navigate("/templates")} className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 rounded-lg transition text-sm font-medium text-slate-400">
+              <button onClick={() => navigate("/templates")} className="px-3 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-slate-400 flex items-center gap-2">
                 <LayoutGrid size={16} /> Templates
-              </button>
-              <button onClick={() => navigate("/themes")} className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 rounded-lg transition text-sm font-medium text-slate-400">
-                <Palette size={16} /> Themes
               </button>
             </div>
           </div>
-
           <div className="flex items-center gap-4">
-            <div className="px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20 font-bold text-sm flex items-center gap-2">
-              <Sparkles size={14} /> {credits} Credits
+            <div className="px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20 font-bold text-sm">
+              {credits} Credits
             </div>
-            <button onClick={() => { localStorage.removeItem("user"); navigate("/"); }} className="text-slate-500 hover:text-red-400 font-medium text-sm flex items-center gap-1 transition-colors">
-              <LogOut size={14} /> Logout
+            <button onClick={() => { localStorage.removeItem("user"); navigate("/"); }} className="text-slate-500 hover:text-red-400 transition-colors">
+              <LogOut size={18} />
             </button>
           </div>
         </div>
@@ -181,122 +152,99 @@ useEffect(() => {
 
       <main className="max-w-[1600px] mx-auto px-6 pt-32 pb-16">
         
-        {/* TOP GRID */}
+        {/* GENERATOR SECTION */}
         <div className="grid lg:grid-cols-3 gap-8 mb-20">
-
-          {/* GENERATOR - Matches Chat Interface Style */}
           <div className="lg:col-span-2 bg-[#0b1224] p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
-            <div className="flex flex-col sm:flex-row justify-between mb-8 gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-600/20">
-                  <PlusCircle size={24} />
-                </div>
-                <h2 className="text-2xl font-bold text-white tracking-tight">Create your vision</h2>
-              </div>
-
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="bg-[#050816] border border-white/10 text-slate-300 text-sm px-4 py-2 rounded-xl outline-none focus:border-blue-500 transition-all"
-              >
-                {AI_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>{m.icon} {m.name}</option>
-                ))}
-              </select>
+            <div className="flex justify-between items-center mb-8">
+               <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
+                 <PlusCircle className="text-blue-500" /> New Project
+               </h2>
+               <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="bg-[#050816] border border-white/10 text-slate-300 text-sm px-4 py-2 rounded-xl outline-none"
+                >
+                  {AI_MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>{m.icon} {m.name}</option>
+                  ))}
+                </select>
             </div>
 
             <textarea
               ref={textareaRef}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe your website (e.g. 'A modern portfolio for a photographer with a dark theme')..."
-              className="w-full h-48 bg-[#050816] border border-white/10 rounded-[1.5rem] p-6 text-lg text-slate-200 focus:ring-2 focus:ring-blue-600/40 focus:border-blue-600 outline-none resize-none transition-all placeholder:text-slate-600"
+              placeholder="Describe your vision..."
+              className="w-full min-h-[120px] bg-[#050816] border border-white/10 rounded-2xl p-6 text-lg text-slate-200 focus:border-blue-600 outline-none transition-all placeholder:text-slate-700 resize-none"
             />
 
             <button
               onClick={generateWebsite}
               disabled={loading}
               className={`mt-6 w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all duration-300 
-              ${loading ? "bg-white/5 text-slate-500" : "bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-600/30 hover:-translate-y-1"}`}
+              ${loading ? "bg-white/5 text-slate-500" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
             >
               {loading ? (
                 <> <Loader2 className="animate-spin" /> {statusText} ({progress}%) </>
               ) : (
-                <> <Sparkles size={20} fill="white" /> Generate Website </>
+                <> <Sparkles size={20} fill="white" /> Build Website </>
               )}
             </button>
           </div>
 
-          {/* CREDIT PANEL - Gradient Style */}
-          <div className="bg-gradient-to-br from-[#0b1224] to-[#050816] border border-white/10 p-8 rounded-[2.5rem] flex flex-col justify-between shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 blur-[60px] pointer-events-none" />
-            <div>
-              <span className="text-xs uppercase tracking-[0.2em] text-slate-500 font-black">Credit Balance</span>
-              <div className="text-7xl font-black mt-4 mb-10 bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-500">
-                {credits}
-              </div>
-            </div>
-
-            <div className="space-y-3 relative z-10">
-              {[ { c: 10, p: "₹99" }, { c: 50, p: "₹399" }, { c: 100, p: "₹699" } ].map((item) => (
-                <button
-                  key={item.c}
-                  onClick={() => handleBuyCredits(item.c)}
-                  className="w-full py-4 px-6 bg-white/[0.03] hover:bg-white/[0.08] rounded-2xl border border-white/5 flex justify-between items-center transition-all group"
-                >
-                  <span className="flex items-center gap-2 text-slate-300 group-hover:text-white font-medium">
-                    <Zap size={14} className="text-blue-500 fill-current" /> {item.c} Credits
-                  </span>
-                  <span className="bg-blue-600 px-3 py-1 rounded-lg text-xs font-black text-white">{item.p}</span>
-                </button>
-              ))}
-            </div>
+          {/* CREDIT BOX */}
+          <div className="bg-gradient-to-br from-[#0b1224] to-[#050816] border border-white/10 p-8 rounded-[2.5rem] flex flex-col justify-between shadow-2xl">
+             <div>
+                <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Credit Balance</span>
+                <div className="text-7xl font-black mt-2 text-white">{credits}</div>
+             </div>
+             <button onClick={() => handleBuyCredits(50)} className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all">Buy More Credits</button>
           </div>
         </div>
 
         {/* PROJECTS SECTION */}
-        <div className="flex items-center justify-between mb-10">
-          <h3 className="text-4xl font-black text-white tracking-tight">Your Projects</h3>
-          <div className="h-px flex-1 mx-8 bg-white/5 hidden md:block" />
-          <span className="px-4 py-1 bg-white/5 rounded-full border border-white/10 text-slate-500 text-sm font-bold">
-            {websites.length} Total
-          </span>
-        </div>
-
+        <h3 className="text-2xl font-bold text-white mb-8 px-2">Recent Projects</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           {websites.map((site) => (
-            <div key={site._id} className="group bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden hover:border-blue-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-600/10">
-              <div className="aspect-[16/10] bg-[#050816] overflow-hidden relative">
-                <img 
-                  src="https://images.unsplash.com/photo-1460925895917?q=80&w=500" 
-                  className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" 
-                  alt="Site preview"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0b1224] to-transparent opacity-60" />
+            <div key={site._id} className="group bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden hover:border-blue-500 transition-all duration-500">
+              
+              {/* PREVIEW BOX - Title Placeholder logic */}
+              <div className="aspect-[16/10] bg-[#161b22] relative flex items-center justify-center overflow-hidden border-b border-white/5">
+                {site.previewImage ? (
+                  <img src={site.previewImage} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-blue-600/20 via-transparent to-purple-600/10 flex items-center justify-center">
+                    <div className="text-center">
+                      {/* Initials Placeholder */}
+                      <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl font-black text-blue-500 mb-2 mx-auto uppercase">
+                        {site.title ? site.title.charAt(0) : "W"}
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">No Preview</span>
+                    </div>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050816] to-transparent opacity-60" />
               </div>
 
               <div className="p-8">
-                <h4 className="text-xl font-bold text-white mb-2 truncate group-hover:text-blue-400 transition-colors">
-                  {site.title || "Untitled Project"}
-                </h4>
-                <p className="text-xs text-slate-500 mb-6 font-medium uppercase tracking-widest">
-                  {new Date(site.createdAt).toLocaleDateString()}
-                </p>
-
-                <div className="flex gap-3">
-                  <button onClick={() => navigate(`/preview/${site._id}`)} className="flex-1 bg-white text-black py-3 rounded-xl text-sm font-black hover:bg-slate-200 transition-all">
-                    Edit
-                  </button>
-                  {site.deployedUrl && (
-                    <button onClick={() => window.open(site.deployedUrl, "_blank")} className="w-12 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center rounded-xl border border-white/10 transition-all">
-                      <Globe size={18} />
-                    </button>
-                  )}
+                <h4 className="text-lg font-bold text-white mb-1 truncate">{site.title || "Untitled Project"}</h4>
+                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-6">
+                  <Calendar size={12} /> {new Date(site.createdAt).toLocaleDateString()}
                 </div>
 
-                <button onClick={() => deleteWebsite(site._id)} className="text-xs text-slate-600 hover:text-red-500 mt-6 flex items-center gap-2 transition-colors mx-auto">
-                  <Trash2 size={12} /> Delete Permanently
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => navigate(`/preview/${site._id}`)} className="flex-1 bg-white text-black py-3 rounded-xl text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all">
+                    EDIT PROJECT
+                  </button>
+                  {site.deployedUrl && (
+                    <button onClick={() => window.open(site.deployedUrl, "_blank")} className="px-4 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center rounded-xl border border-white/10 transition-all">
+                      <ExternalLink size={16} />
+                    </button>
+                  )}
+                  <button onClick={() => deleteWebsite(site._id)} className="px-4 text-slate-600 hover:text-red-500 transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
