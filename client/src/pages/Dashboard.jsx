@@ -31,13 +31,13 @@ const Dashboard = () => {
     { id: "google/gemini-pro-1.5", name: "Gemini 1.5 Pro", icon: "✨", speed: "Deep" },
   ];
 
-  // Pricing Plans Data
   const PRICING_PLANS = [
-    { credits: 10, price: "₹99", icon: <Zap size={14} className="text-blue-500 fill-current" /> },
-    { credits: 50, price: "₹399", icon: <Zap size={14} className="text-blue-500 fill-current" /> },
-    { credits: 100, price: "₹699", icon: <Zap size={14} className="text-blue-500 fill-current" /> },
+    { credits: 10, price: "99", icon: <Zap size={14} className="text-blue-500 fill-current" /> },
+    { credits: 50, price: "399", icon: <Zap size={14} className="text-blue-500 fill-current" /> },
+    { credits: 100, price: "699", icon: <Zap size={14} className="text-blue-500 fill-current" /> },
   ];
 
+  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -45,6 +45,7 @@ const Dashboard = () => {
     }
   }, [prompt]);
 
+  // Initial Data Fetch
   useEffect(() => {
     if (!token) {
       navigate("/");
@@ -55,19 +56,20 @@ const Dashboard = () => {
     fetchWebsites();
   }, [token]);
 
+  // Catch data from Themes Page
   useEffect(() => {
-    if (location.state?.refresh || location.state?.newCredits !== undefined) {
-      const updatedCredits = location.state.newCredits || JSON.parse(localStorage.getItem("user"))?.credits;
-      if (updatedCredits !== undefined) setCredits(updatedCredits);
-    }
     if (location.state?.selectedPrompt) {
       setPrompt(location.state.selectedPrompt);
+      // Focus the textarea and scroll to it
       setTimeout(() => {
         if (textareaRef.current) {
           textareaRef.current.focus();
-          textareaRef.current.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
+          window.scrollTo({ top: 150, behavior: 'smooth' });
         }
-      }, 300);
+      }, 500);
+    }
+    if (location.state?.newCredits !== undefined) {
+        setCredits(location.state.newCredits);
     }
   }, [location.state]);
 
@@ -138,9 +140,13 @@ const Dashboard = () => {
               </div>
               <span className="text-2xl font-bold tracking-tighter text-white">GenSite</span>
             </div>
+            {/* UPDATED NAVIGATION BUTTONS */}
             <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
               <button onClick={() => navigate("/templates")} className="px-3 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-slate-400 flex items-center gap-2 transition-all">
                 <LayoutGrid size={16} /> Templates
+              </button>
+              <button onClick={() => navigate("/themes")} className="px-3 py-1.5 hover:bg-blue-500/10 hover:text-blue-400 rounded-lg text-xs font-medium text-slate-400 flex items-center gap-2 transition-all">
+                <Palette size={16} /> Themes
               </button>
             </div>
           </div>
@@ -179,7 +185,7 @@ const Dashboard = () => {
               ref={textareaRef}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe your vision..."
+              placeholder="Describe your vision (or select a theme from the menu above)..."
               className="w-full min-h-[120px] bg-[#050816] border border-white/10 rounded-2xl p-6 text-lg text-slate-200 focus:border-blue-600 outline-none transition-all placeholder:text-slate-700 resize-none leading-relaxed"
             />
 
@@ -197,7 +203,7 @@ const Dashboard = () => {
             </button>
           </div>
 
-          {/* CREDIT BOX - Multi-Plan View */}
+          {/* CREDIT BOX */}
           <div className="bg-gradient-to-br from-[#0b1224] to-[#050816] border border-white/10 p-8 rounded-[2.5rem] flex flex-col justify-between shadow-2xl relative overflow-hidden">
              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 blur-[60px] pointer-events-none" />
              <div>
@@ -215,7 +221,7 @@ const Dashboard = () => {
                     <span className="flex items-center gap-2 text-slate-300 group-hover:text-white font-medium">
                       {plan.icon} {plan.credits} Credits
                     </span>
-                    <span className="bg-blue-600 px-3 py-1 rounded-lg text-[10px] font-black text-white">{plan.price}</span>
+                    <span className="bg-blue-600 px-3 py-1 rounded-lg text-[10px] font-black text-white">₹{plan.price}</span>
                   </button>
                 ))}
              </div>
@@ -231,7 +237,6 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           {websites.map((site) => (
             <div key={site._id} className="group bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden hover:border-blue-500 transition-all duration-500">
-              
               <div className="aspect-[16/10] bg-[#161b22] relative flex items-center justify-center overflow-hidden border-b border-white/5">
                 {site.previewImage ? (
                   <img src={site.previewImage} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="" />
@@ -247,22 +252,15 @@ const Dashboard = () => {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#050816] to-transparent opacity-60" />
               </div>
-
               <div className="p-8">
                 <h4 className="text-lg font-bold text-white mb-1 truncate">{site.title || "Untitled Project"}</h4>
                 <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-6">
                   <Calendar size={12} /> {new Date(site.createdAt).toLocaleDateString()}
                 </div>
-
                 <div className="flex gap-2">
                   <button onClick={() => navigate(`/preview/${site._id}`)} className="flex-1 bg-white text-black py-3 rounded-xl text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all">
                     EDIT PROJECT
                   </button>
-                  {site.deployedUrl && (
-                    <button onClick={() => window.open(site.deployedUrl, "_blank")} className="px-4 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center rounded-xl border border-white/10 transition-all">
-                      <ExternalLink size={16} />
-                    </button>
-                  )}
                   <button onClick={() => deleteWebsite(site._id)} className="px-4 text-slate-600 hover:text-red-500 transition-colors">
                     <Trash2 size={16} />
                   </button>
