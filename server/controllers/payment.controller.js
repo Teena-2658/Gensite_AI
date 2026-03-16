@@ -86,60 +86,44 @@ export const createCheckoutSession = async (req, res) => {
 VERIFY PAYMENT
 -----------------------------------
 */
-
+// Backend: verifyPayment controller
 export const verifyPayment = async (req, res) => {
-
   try {
-
     const { sessionId } = req.body;
-
+    
+    // 1. Retrieve session from Stripe
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status !== "paid") {
+      return res.status(400).json({ message: "Payment not completed" });
+    }
 
-      return res.status(400).json({
-        message: "Payment not completed"
-      });
-
+    // 2. Check if this session was already processed
+    // Stripe metadata check (Optional but good)
+    if (session.metadata.isProcessed === "true") {
+      return res.status(200).json({ success: true, message: "Already updated" });
     }
 
     const userId = session.metadata.userId;
     const creditsToAdd = Number(session.metadata.credits);
 
+    // 3. Update User Credits
     const updatedUser = await User.findByIdAndUpdate(
-
       userId,
-
-      {
-        $inc: { credits: creditsToAdd }
-      },
-
-      {
-        new: true
-      }
-
+      { $inc: { credits: creditsToAdd } },
+      { new: true }
     );
 
+    // 4. (Optional) Mark session as processed in your DB if you have a Payment model
+    // Otherwise, the frontend logic will handle the redirect.
+
     res.json({
-
       success: true,
-
       creditsAdded: creditsToAdd,
-
       newBalance: updatedUser.credits
-
     });
-
+  } catch (error) {
+    console.error("Verification error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
-
-  catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      message: "Verification failed"
-    });
-
-  }
-
 };
