@@ -12,7 +12,7 @@ const Dashboard = () => {
   const [selectedModel, setSelectedModel] = useState("openai/gpt-4o-mini");
   const [websites, setWebsites] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [deployingId, setDeployingId] = useState(null); // Added for Vercel Deploy
+  const [deployingId, setDeployingId] = useState(null); 
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
   const [credits, setCredits] = useState(0);
@@ -39,6 +39,7 @@ const Dashboard = () => {
     { credits: 100, price: "699", icon: <Zap size={14} className="text-blue-500 fill-current" /> },
   ];
 
+  // Auto-resize textarea logic
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -46,12 +47,14 @@ const Dashboard = () => {
     }
   }, [prompt]);
 
+  // Initial Sync
   useEffect(() => {
     if (!token) return navigate("/");
     setCredits(userData?.credits || 0);
     fetchWebsites();
   }, [token]);
 
+  // Handle updates from other pages (Themes/Payment Success)
   useEffect(() => {
     if (location.state?.selectedPrompt) {
       setPrompt(location.state.selectedPrompt);
@@ -62,7 +65,12 @@ const Dashboard = () => {
         }
       }, 500);
     }
-    if (location.state?.newCredits !== undefined) setCredits(location.state.newCredits);
+    if (location.state?.newCredits !== undefined) {
+      setCredits(location.state.newCredits);
+      // Sync localstorage just in case
+      const updatedUser = { ...userData, credits: location.state.newCredits };
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+    }
   }, [location.state]);
 
   const fetchWebsites = async () => {
@@ -71,23 +79,36 @@ const Dashboard = () => {
       setWebsites(Array.isArray(res.data) ? res.data : res.data.websites || []);
     } catch (error) { console.error("Fetch error:", error); }
   };
-const handleDeploy = async (id) => {
+
+  // --- RE-INTEGRATED PAYMENT LOGIC ---
+  const handlePayment = async (plan) => {
+    try {
+      // Endpoint ensure karein aapke backend se match kare (/create-checkout or /create-checkout-session)
+      const res = await axios.post(`${serverUrl}/api/payment/create-checkout`, {
+        credits: plan.credits
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.data.url) {
+        window.location.href = res.data.url;
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      alert("Payment gateway failed to load.");
+    }
+  };
+
+  const handleDeploy = async (id) => {
     setDeployingId(id);
     try {
-      // Line 81: Backend path aur method (PUT) check karein
       const res = await axios.put(`${API_URL}/deploy/${id}`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (res.data.success) {
         alert("🚀 Website is now Live on Vercel!");
-        
-        // 1. Success hone par direct URL open karein
-        if (res.data.deployedUrl) {
-            window.open(res.data.deployedUrl, '_blank');
-        }
-        
-        // 2. Dashboard list update karein taaki LIVE badge dikhe
+        if (res.data.deployedUrl) window.open(res.data.deployedUrl, '_blank');
         fetchWebsites();
       }
     } catch (error) {
@@ -98,7 +119,7 @@ const handleDeploy = async (id) => {
   };
 
   const generateWebsite = async () => {
-    if (!prompt.trim()) return alert("Please describe your idea!");
+    if (!prompt.trim()) return alert("Please describe your vision!");
     if (credits < 50) return setShowCreditPopup(true);
 
     setLoading(true);
@@ -203,6 +224,7 @@ const handleDeploy = async (id) => {
             </button>
           </div>
 
+          {/* PAYMENT BOX */}
           <div className="bg-gradient-to-br from-[#0b1224] to-[#050816] border border-white/10 p-8 rounded-[2.5rem] flex flex-col justify-between shadow-2xl relative overflow-hidden">
              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 blur-[60px] pointer-events-none" />
              <div>
@@ -211,7 +233,7 @@ const handleDeploy = async (id) => {
              </div>
              <div className="space-y-3 relative z-10">
                 {PRICING_PLANS.map((plan) => (
-                  <button key={plan.credits} onClick={() => alert("Payment logic here")} className="w-full py-4 px-6 bg-white/[0.03] hover:bg-white/[0.08] rounded-2xl border border-white/5 flex justify-between items-center transition-all group">
+                  <button key={plan.credits} onClick={() => handlePayment(plan)} className="w-full py-4 px-6 bg-white/[0.03] hover:bg-white/[0.08] rounded-2xl border border-white/5 flex justify-between items-center transition-all group">
                     <span className="flex items-center gap-2 text-slate-300 group-hover:text-white font-medium">{plan.icon} {plan.credits} Credits</span>
                     <span className="bg-blue-600 px-3 py-1 rounded-lg text-[10px] font-black text-white">₹{plan.price}</span>
                   </button>
@@ -225,16 +247,16 @@ const handleDeploy = async (id) => {
           <div className="h-px flex-1 mx-8 bg-white/5 hidden md:block" />
         </div>
 
+        {/* PROJECTS LIST */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           {websites.map((site) => (
             <div key={site._id} className="group bg-white/[0.02] border border-white/10 rounded-[2rem] overflow-hidden hover:border-blue-500 transition-all duration-500">
               <div className="aspect-[16/10] bg-[#161b22] relative flex items-center justify-center overflow-hidden border-b border-white/5">
                 <div className="w-full h-full bg-gradient-to-br from-blue-600/20 via-transparent to-purple-600/10 flex items-center justify-center">
                    <div className="text-center">
-                      <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl font-black text-blue-500 mb-2 mx-auto uppercase">{site.title.charAt(0)}</div>
+                      <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl font-black text-blue-500 mb-2 mx-auto uppercase">{site.title ? site.title.charAt(0) : 'W'}</div>
                    </div>
                 </div>
-                {/* Deployment Status Badge */}
                 {site.deployed && (
                   <div className="absolute top-4 right-4 bg-green-500 text-white text-[8px] font-black px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
                     <Globe size={10} /> LIVE
@@ -261,7 +283,6 @@ const handleDeploy = async (id) => {
                     <Monitor size={14} /> Open Editor
                   </button>
                   
-                  {/* Vercel Deploy Button */}
                   <button 
                     onClick={() => handleDeploy(site._id)} 
                     disabled={deployingId === site._id}
