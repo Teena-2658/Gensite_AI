@@ -15,7 +15,7 @@ const Dashboard = () => {
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
   const [credits, setCredits] = useState(0);
-
+const [showCreditPopup, setShowCreditPopup] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const textareaRef = useRef(null);
@@ -89,8 +89,10 @@ const Dashboard = () => {
 
   const generateWebsite = () => {
     if (!prompt.trim()) return alert("Please describe your idea!");
-    if (credits < 1) return alert("Insufficient credits!");
-    setLoading(true); setProgress(0); setStatusText("AI is conceptualizing...");
+if (credits < 50) {
+  setShowCreditPopup(true);
+  return;
+}    setLoading(true); setProgress(0); setStatusText("AI is conceptualizing...");
 
     const url = `${API_URL}/generate-stream?prompt=${encodeURIComponent(prompt)}&model=${selectedModel}`;
     fetch(url, { method: "GET", headers: { Authorization: `Bearer ${token}` } }).then(async (response) => {
@@ -130,6 +132,28 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-[#050816] text-slate-200 font-sans selection:bg-blue-500/30">
       
+      {showCreditPopup && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className="bg-[#0b1224] border border-white/10 rounded-2xl p-6 w-[340px] text-center shadow-2xl">
+
+      <div className="text-xl font-bold text-white mb-2">
+        ⚡ Not Enough Credits
+      </div>
+
+      <p className="text-sm text-slate-400 mb-5">
+        You need at least <b>50 credits</b> to generate a website.
+      </p>
+
+      <button
+        onClick={() => setShowCreditPopup(false)}
+        className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-semibold"
+      >
+        OK
+      </button>
+
+    </div>
+  </div>
+)}
       {/* NAVBAR */}
       <nav className="fixed top-0 w-full z-50 bg-[#050816]/80 backdrop-blur-lg border-b border-white/5">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex justify-between items-center">
