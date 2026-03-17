@@ -1,9 +1,9 @@
 // src/constants.js
 
-export const serverUrl = "http://localhost:8000";
+// export const serverUrl = "http://localhost:8000";
 // src/constants.js
 
-// export const serverUrl = "https://gensite-ai.onrender.com";
+export const serverUrl = "https://gensite-ai.onrender.com";
 // constants.js mein sirf ye hona chahiye
 export const TEMPLATES_DATA = [
   {
