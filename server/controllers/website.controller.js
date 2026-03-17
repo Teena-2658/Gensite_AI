@@ -143,9 +143,11 @@ export const deployWebsite = async (req, res) => {
         const website = await Website.findOne({ _id: req.params.id, user: req.user._id });
         if (!website) return res.status(404).json({ success: false, message: "Website not found" });
 
+        // Vercel project name rules: lowercase, alphanumeric and hyphens only
         const projectName = `gensite-${website._id}`;
         
-        const vercelResponse = await fetch("https://api.vercel.com/v13/deployments", {
+        // added skipAutoDetectionConfirmation=1 to prevent projectSettings error
+        const vercelResponse = await fetch("https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${process.env.VERCEL_TOKEN.trim()}`,
@@ -153,20 +155,36 @@ export const deployWebsite = async (req, res) => {
             },
             body: JSON.stringify({
                 name: projectName,
-                files: [{ file: "index.html", data: website.latestCode }],
+                files: [{ 
+                    file: "index.html", 
+                    data: website.latestCode 
+                }],
+                projectSettings: {
+                    framework: null // Tells Vercel this is a static HTML site
+                },
                 target: "production"
             })
         });
 
         const data = await vercelResponse.json();
-        if (data.error) throw new Error(data.error.message);
+        
+        if (data.error) {
+            console.error("Vercel Error:", data.error);
+            throw new Error(data.error.message);
+        }
 
+        // Update database with live URL
         website.deployed = true;
         website.deployedUrl = `https://${data.url}`;
         await website.save();
 
-        res.json({ success: true, deployedUrl: website.deployedUrl });
+        res.json({ 
+            success: true, 
+            deployedUrl: website.deployedUrl,
+            message: "Deployed successfully!" 
+        });
     } catch (error) {
+        console.error("Deployment Catch Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
