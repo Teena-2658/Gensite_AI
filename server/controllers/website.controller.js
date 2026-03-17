@@ -1,4 +1,11 @@
 // import mongoose from "mongoose";
+import mongoose from "mongoose";
+import Website from "../models/website.model.js";
+import User from "../models/user.model.js";
+import { generateResponse } from "../config/openRouter.js";
+import extractJson from "../utils/extractJson.js";
+import fetch from "node-fetch";
+
 // import Website from "../models/website.model.js";
 // import User from "../models/user.model.js";
 // import { generateResponse } from "../config/openRouter.js";
@@ -80,170 +87,108 @@
 // GENERATE OR MODIFY WEBSITE
 // -----------------------------------------
 // */
-// export const generateWebsite = async (req, res) => {
+export const generateWebsite = async (req, res) => {
+  const send = (data) => {
+    try {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+      if (res.flush) res.flush();
+    } catch (e) {
+      console.error("SSE write failed:", e);
+    }
+  };
 
-//   const send = (data) => {
-//     res.write(`data: ${JSON.stringify(data)}\n\n`);
-//   };
+  try {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.flushHeaders();
 
-//   try {
+    const { prompt, websiteId } = req.body;
 
-//     res.writeHead(200, {
-//       "Content-Type": "text/event-stream",
-//       "Cache-Control": "no-cache",
-//       Connection: "keep-alive"
-//     });
+    if (!prompt || !req.user) {
+      send({ error: true, message: "Prompt or auth missing" });
+      return res.end();
+    }
 
-//     const { prompt, websiteId } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      send({ error: true, message: "User not found" });
+      return res.end();
+    }
 
-//     if (!prompt || !req.user) {
-//       send({ error: true, message: "Prompt or auth missing" });
-//       return res.end();
-//     }
+    const cost = websiteId ? 25 : 50;
+    if (user.credits < cost) {
+      send({ error: true, type: "CREDIT_ERROR", message: "Not enough credits" });
+      return res.end();
+    }
 
-//     const user = await User.findById(req.user._id);
+    user.credits -= cost;
+    await user.save().catch(err => console.error("User save failed:", err));
 
-//     if (!user) {
-//       send({ error: true, message: "User not found" });
-//       return res.end();
-//     }
+    send({ message: "Starting generation..." });
 
-//     const isModify = Boolean(websiteId);
-//     const cost = isModify ? 25 : 50;
+    let website = null;
+    if (websiteId) {
+      website = await Website.findOne({ _id: websiteId, user: user._id });
+    }
 
-//     if (user.credits < cost) {
-//       send({
-//         error: true,
-//         type: "CREDIT_ERROR",
-//         message: "Not enough credits"
-//       });
-//       return res.end();
-//     }
+    const messages = [
+      { role: "system", content: masterPrompt },
+      { role: "user", content: prompt }
+    ];
 
-//     user.credits -= cost;
-//     await user.save();
+    console.log("Calling AI with prompt:", prompt.substring(0, 100) + "...");
 
-//     send({ percent: 20, text: "AI is crafting your code..." });
+    const raw = await generateResponse(messages);
+    console.log("Raw AI response (first 500 chars):", raw?.substring(0, 500));
 
-//     // ✅ SINGLE website variable (FIXED)
-//     let website = null;
+    const parsed = await extractJson(raw);
+    console.log("Parsed AI result:", parsed);
 
-//     if (isModify) {
-//       website = await Website.findOne({
-//         _id: websiteId,
-//         user: user._id
-//       });
+    if (!parsed?.code) {
+      console.error("No valid code from AI", { parsed, raw: raw.substring(0, 300) });
+      send({ error: true, message: "AI response invalid - no code found" });
+      return res.end();
+    }
 
-//       if (!website) {
-//         send({ error: true, message: "Website not found" });
-//         return res.end();
-//       }
-//     }
+    if (website) {
+      website.latestCode = parsed.code;
+      website.conversation.push(
+        { role: "user", content: prompt },
+        { role: "ai", content: parsed.message || "Updated" }
+      );
+    } else {
+      website = await Website.create({
+        user: user._id,
+        title: prompt.substring(0, 60),
+        latestCode: parsed.code,
+        conversation: [
+          { role: "user", content: prompt },
+          { role: "ai", content: parsed.message || "Generated" }
+        ]
+      });
+    }
 
-//     // ✅ BUILD CHAT CONTEXT
-//     const messages = [
-//       {
-//         role: "system",
-// content: `
-// ${masterPrompt.replace("{USER_PROMPT}", "")}
+    await website.save().catch(err => console.error("Website save failed:", err));
 
-// IMPORTANT:
-// If previous code exists, MODIFY it instead of creating new.
-// Keep layout same unless user asks.
-// Only apply requested changes.
-// `      }
-//     ];
+    send({
+      code: parsed.code,           // optional – heavy हो सकता है, लेकिन अभी रखा है
+      websiteId: website._id,
+      remainingCredits: user.credits
+    });
 
-//     if (website && website.conversation) {
-//       website.conversation.forEach(msg => {
-//         messages.push({
-//           role: msg.role === "ai" ? "assistant" : "user",
-//           content: msg.content
-//         });
-//       });
-//     }
+    res.end();
 
-//     messages.push({
-//       role: "user",
-//       content: prompt.replace(/[<>]/g, "")
-//     });
-
-//     // ✅ CALL AI
-//     const raw = await generateResponse(messages);
-
-//     const parsed = await extractJson(raw);
-
-//     if (!parsed || !parsed.code) {
-//       send({ error: true, message: "AI generation failed" });
-//       return res.end();
-//     }
-
-//     let projectName;
-
-//     if (isModify) {
-
-//       website.latestCode = parsed.code;
-
-//       website.conversation.push(
-//         { role: "user", content: prompt },
-//         { role: "ai", content: parsed.message }
-//       );
-
-//       projectName =
-//         website.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").substring(0, 30) +
-//         "-" +
-//         website._id.toString().slice(-6);
-
-//       send({ percent: 80, text: "Updating deployment..." });
-
-//     } else {
-
-//       const slug =
-//         prompt.toLowerCase().replace(/[^a-z0-9]+/g, "-").substring(0, 20) +
-//         "-" +
-//         Date.now();
-
-//       website = await Website.create({
-//         user: user._id,
-//         title: prompt.split(" ").slice(0, 6).join(" "),
-//         slug,
-//         latestCode: parsed.code,
-//         conversation: [
-//           { role: "user", content: prompt },
-//           { role: "ai", content: parsed.message }
-//         ]
-//       });
-
-//       projectName = slug;
-
-//       send({ percent: 80, text: "Deploying website..." });
-//     }
-
-//     await website.save();
-
-//     send({
-//       done: true,
-//       message: parsed.message,
-//       code: parsed.code,
-//       websiteId: website._id,
-//       remainingCredits: user.credits
-//     });
-
-//     res.end();
-
-//   } catch (error) {
-
-//     console.error(error);
-
-//     res.write(`data: ${JSON.stringify({
-//       error: true,
-//       message: error.message
-//     })}\n\n`);
-
-//     res.end();
-//   }
-// };
-
+  } catch (error) {
+    console.error("Critical error in generateWebsite:", error);
+    send({
+      error: true,
+      message: error.message || "Server error during generation"
+    });
+    res.end();
+  }
+};
 
 
 // /*
@@ -588,12 +533,7 @@ export const deleteWebsite = async (req, res) => {
 
 };
 
-import mongoose from "mongoose";
-import Website from "../models/website.model.js";
-import User from "../models/user.model.js";
-import { generateResponse } from "../config/openRouter.js";
-import extractJson from "../utils/extractJson.js";
-import fetch from "node-fetch";
+
 
 const masterPrompt = `
 YOU ARE A PRINCIPAL FRONTEND ARCHITECT
@@ -616,209 +556,74 @@ OUTPUT:
 RETURN RAW JSON ONLY
 `;
 
-export const generateWebsite = async (req, res) => {
+// export const generateWebsite = async (req, res) => {
 
-  const send = (data) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
-  };
+//   const send = (data) => {
+//   res.write(`data: ${JSON.stringify(data)}\n\n`);
+//   if (res.flush) res.flush();
+// };
 
-  try {
+//   try {
 
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive"
-    });
+//    res.setHeader("Content-Type", "text/event-stream");
+// res.setHeader("Cache-Control", "no-cache");
+// res.setHeader("Connection", "keep-alive");
+// res.setHeader("Access-Control-Allow-Origin", "*");
 
-    const { prompt, websiteId } = req.body;
+// res.flushHeaders();
+//     const { prompt } = req.body;
 
-    if (!prompt || !req.user) {
-      send({ error: true, message: "Prompt or auth missing" });
-      return res.end();
-    }
+//     if (!prompt || !req.user) {
+//       send({ error: true, message: "Missing prompt/auth" });
+//       return res.end();
+//     }
 
-    const user = await User.findById(req.user._id);
+//     const user = await User.findById(req.user._id);
 
-    if (!user) {
-      send({ error: true, message: "User not found" });
-      return res.end();
-    }
+//     if (!user || user.credits < 50) {
+//       send({ error: true, type: "CREDIT_ERROR" });
+//       return res.end();
+//     }
 
-    const isModify = Boolean(websiteId);
-    const cost = isModify ? 25 : 50;
+//     user.credits -= 50;
+//     await user.save();
 
-    if (user.credits < cost) {
-      send({
-        error: true,
-        type: "CREDIT_ERROR",
-        message: "Not enough credits"
-      });
-      return res.end();
-    }
+//     send({ message: "Generating UI..." });
 
-    user.credits -= cost;
-    await user.save();
+//     const messages = [
+//       { role: "system", content: masterPrompt },
+//       { role: "user", content: prompt }
+//     ];
 
-    send({ percent: 20, text: "AI is crafting your code..." });
+//     const raw = await generateResponse(messages);
+//     const parsed = await extractJson(raw);
 
-    // ✅ SINGLE website variable
-    let website = null;
+//     if (!parsed?.code) {
+//       send({ error: true, message: "AI failed" });
+//       return res.end();
+//     }
 
-    if (isModify) {
-      website = await Website.findOne({
-        _id: websiteId,
-        user: user._id
-      });
+//     const website = await Website.create({
+//       user: user._id,
+//       title: prompt,
+//       latestCode: parsed.code,
+//       conversation: [
+//         { role: "user", content: prompt },
+//         { role: "ai", content: parsed.message }
+//       ]
+//     });
 
-      if (!website) {
-        send({ error: true, message: "Website not found" });
-        return res.end();
-      }
-    }
+//     send({
+//       code: parsed.code,
+//       websiteId: website._id,
+//       remainingCredits: user.credits
+//     });
 
-    // ✅ BUILD MESSAGES
-    const messages = [
-      {
-        role: "system",
-        content: masterPrompt
-      }
-    ];
+//     res.end();
 
-    // ✅ CHAT HISTORY
-    if (website && website.conversation) {
-      website.conversation.forEach(msg => {
-        messages.push({
-          role: msg.role === "ai" ? "assistant" : "user",
-          content: msg.content
-        });
-      });
-    }
-
-    // ✅ EXISTING CODE (VERY IMPORTANT 🔥)
-    if (website && website.latestCode) {
-      messages.push({
-        role: "user",
-        content: `CURRENT WEBSITE CODE:\n\n${website.latestCode}`
-      });
-    }
-
-    // ✅ NEW USER PROMPT
-    messages.push({
-      role: "user",
-      content: prompt.replace(/[<>]/g, "")
-    });
-
-    // ✅ AI CALL
-    const raw = await generateResponse(messages);
-
-    const parsed = await extractJson(raw);
-
-    if (!parsed || !parsed.code) {
-      send({ error: true, message: "AI generation failed" });
-      return res.end();
-    }
-
-    let projectName;
-
-    if (isModify) {
-
-      website.latestCode = parsed.code;
-
-      // ✅ SAVE CONVERSATION
-      website.conversation.push(
-        { role: "user", content: prompt },
-        { role: "ai", content: parsed.message }
-      );
-
-      projectName =
-        website.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").substring(0, 30) +
-        "-" +
-        website._id.toString().slice(-6);
-
-      send({ percent: 80, text: "Updating deployment..." });
-
-    } else {
-
-      const slug =
-        prompt.toLowerCase().replace(/[^a-z0-9]+/g, "-").substring(0, 20) +
-        "-" +
-        Date.now();
-
-      website = await Website.create({
-        user: user._id,
-        title: prompt.split(" ").slice(0, 6).join(" "),
-        slug,
-        latestCode: parsed.code,
-        conversation: [
-          { role: "user", content: prompt },
-          { role: "ai", content: parsed.message }
-        ]
-      });
-
-      projectName = slug;
-
-      send({ percent: 80, text: "Deploying website..." });
-    }
-
-    // 🚀 DEPLOY
-    try {
-
-      const vercelReq = await fetch(
-        "https://api.vercel.com/v13/deployments",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.VERCEL_TOKEN.trim()}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            name: projectName,
-            files: [
-              {
-                file: "index.html",
-                data: parsed.code,
-                encoding: "utf-8"
-              }
-            ],
-            projectSettings: { framework: null },
-            target: "production"
-          })
-        }
-      );
-
-      const vercelData = await vercelReq.json();
-
-      if (vercelReq.ok) {
-        website.deployed = true;
-        website.deployedUrl = `https://${vercelData.url}`;
-      }
-
-    } catch (err) {
-      console.error("Vercel Deploy Error:", err.message);
-    }
-
-    await website.save();
-
-    send({
-      done: true,
-      message: parsed.message,
-      code: parsed.code,
-      websiteId: website._id,
-      deployedUrl: website.deployedUrl,
-      remainingCredits: user.credits
-    });
-
-    res.end();
-
-  } catch (error) {
-
-    console.error(error);
-
-    res.write(`data: ${JSON.stringify({
-      error: true,
-      message: error.message
-    })}\n\n`);
-
-    res.end();
-  }
-};
+//   } catch (err) {
+//     console.error(err);
+//     send({ error: true, message: err.message });
+//     res.end();
+//   }
+// };

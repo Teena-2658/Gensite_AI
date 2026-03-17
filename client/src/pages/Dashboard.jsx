@@ -87,39 +87,115 @@ const [showCreditPopup, setShowCreditPopup] = useState(false);
     } catch (error) { alert("Payment gateway failed to load."); }
   };
 
-  const generateWebsite = () => {
-    if (!prompt.trim()) return alert("Please describe your idea!");
-if (credits < 50) {
-  setShowCreditPopup(true);
-  return;
-}    setLoading(true); setProgress(0); setStatusText("AI is conceptualizing...");
+// ... बाकी code वही है ...
 
-    const url = `${API_URL}/generate-stream?prompt=${encodeURIComponent(prompt)}&model=${selectedModel}`;
-    fetch(url, { method: "GET", headers: { Authorization: `Bearer ${token}` } }).then(async (response) => {
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split(/\r?\n\r?\n/);
-        parts.slice(0, -1).forEach(part => {
-          if (part.startsWith("data: ")) {
-            const data = JSON.parse(part.replace("data: ", ""));
-            if (data.percent !== undefined) setProgress(data.percent);
-            if (data.text) setStatusText(data.text);
-            if (data.done) {
-              setCredits(data.remainingCredits);
-              localStorage.setItem("user", JSON.stringify({ ...userData, credits: data.remainingCredits }));
-              setPrompt(""); fetchWebsites(); setLoading(false);
-            }
-          }
-        });
-        buffer = parts[parts.length - 1];
+const generateWebsite = async () => {
+  if (!prompt.trim()) return alert("Please describe your idea!");
+
+  if (credits < 50) {
+    setShowCreditPopup(true);
+    return;
+  }
+
+  setLoading(true);
+  setProgress(0);
+  setStatusText("AI is conceptualizing...");
+
+  try {
+    const response = await fetch(`${API_URL}/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        prompt,
+        model: selectedModel   // अगर backend model use कर रहा है तो अच्छा
+      })
+    });
+
+    console.log("SSE Response status:", response.status, response.ok);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Server error:", text);
+      throw new Error(`Server responded with ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error("No response body");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        console.log("SSE stream ended");
+        break;
       }
-    }).catch(() => { alert("Error generating site"); setLoading(false); });
-  };
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+
+      for (const event of events) {
+        if (!event.startsWith("data:")) continue;
+
+        try {
+          const dataStr = event.replace("data:", "").trim();
+          console.log("Received SSE data:", dataStr); // ← ये देखो server क्या भेज रहा है
+          const data = JSON.parse(dataStr);
+
+          if (data.error) {
+            alert("Error from server: " + (data.message || "Unknown error"));
+            setLoading(false);
+            return;
+          }
+
+          if (data.message) {
+            setStatusText(data.message);
+            setProgress((prev) => Math.min(prev + 10, 95));
+          }
+
+          if (data.code) {
+            setProgress(100);
+            setStatusText("Finalizing...");
+          }
+
+          if (data.remainingCredits !== undefined) {
+            setCredits(data.remainingCredits);
+            const updatedUser = { ...userData, credits: data.remainingCredits };
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+          }
+
+          if (data.websiteId) {
+            console.log("Generation complete → navigating to", data.websiteId);
+            setLoading(false);
+            navigate(`/preview/${data.websiteId}`);
+            return; // important: early exit
+          }
+        } catch (parseErr) {
+          console.error("SSE parse error:", parseErr, "raw:", event);
+        }
+      }
+    }
+
+    console.log("SSE loop finished without websiteId");
+    setLoading(false);
+    alert("Generation finished but no preview link received. Check server logs.");
+
+  } catch (error) {
+    console.error("Generation failed:", error);
+    alert("Something went wrong! Check console → " + error.message);
+    setLoading(false);
+  }
+};
+
+// ... बाकी return वाला code बिल्कुल वही ...
 
   const deleteWebsite = async (id) => {
     if (!window.confirm("Are you sure?")) return;
